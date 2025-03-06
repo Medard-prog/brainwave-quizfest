@@ -26,7 +26,7 @@ const ParticipantsPage = () => {
           .select(`
             id,
             quiz_id,
-            quizzes!inner(title),
+            quizzes(title),
             created_at,
             started_at,
             ended_at
@@ -57,7 +57,7 @@ const ParticipantsPage = () => {
               // Add quiz and session info to each player
               const playersWithSessionInfo = players.map(player => ({
                 ...player,
-                quiz_title: session.quizzes?.title || "Unknown Quiz",
+                quiz_title: session.quizzes && session.quizzes[0] ? session.quizzes[0].title : "Unknown Quiz",
                 session_date: new Date(session.created_at).toLocaleDateString(),
                 completed: session.ended_at ? true : false
               }));
