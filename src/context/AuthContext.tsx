@@ -34,16 +34,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select('*')
         .eq('id', supabaseUser.id)
         .maybeSingle();
-
+  
       if (error) {
         console.error('Error fetching user profile:', error.message);
         return null;
       }
-
+  
       if (data) {
         return {
           id: data.id,
-          email: supabaseUser.email || '',
+          email: data.email,
           username: data.username,
           avatar_url: data.avatar_url,
           first_name: data.first_name,
@@ -52,8 +52,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           xp: data.xp
         };
       } else {
-        // Create a default user profile if none exists
-        return {
+        // Create a new profile if none exists
+        const newProfile = {
           id: supabaseUser.id,
           email: supabaseUser.email || '',
           username: supabaseUser.email?.split('@')[0] || 'user',
@@ -63,6 +63,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           is_teacher: false,
           xp: 0
         };
+  
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert(newProfile);
+  
+        if (insertError) {
+          console.error('Error creating profile:', insertError.message);
+          return null;
+        }
+  
+        return newProfile;
       }
     } catch (error: any) {
       console.error('Error fetching user profile:', error.message);
@@ -73,20 +84,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
     
-    // Get initial session
     const initializeAuth = async () => {
       setIsLoading(true);
       try {
-        console.log("Initializing auth and fetching session...");
         const { data: { session } } = await supabase.auth.getSession();
-        
         if (!mounted) return;
         
-        console.log("Session fetched:", session?.user?.id);
         setSession(session);
         
         if (session?.user) {
-          console.log("User exists in session, fetching profile...");
           const profile = await fetchUserProfile(session.user);
           if (mounted && profile) {
             setUser(profile);
@@ -111,14 +117,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log("Auth state change:", event, session?.user?.id);
         setSession(session);
         
-        if (event === 'SIGNED_IN' && session?.user) {
+        if (session?.user) {
           setIsLoading(true);
-          const profile = await fetchUserProfile(session.user);
-          if (mounted && profile) {
-            setUser(profile);
+          try {
+            const profile = await fetchUserProfile(session.user);
+            if (mounted) {
+              setUser(profile);
+            }
+          } catch (error) {
+            console.error("Error handling auth state change:", error);
+          } finally {
+            if (mounted) {
+              setIsLoading(false);
+            }
           }
-          setIsLoading(false);
-        } else if (event === 'SIGNED_OUT') {
+        } else {
           setUser(null);
         }
       }
@@ -126,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 
@@ -136,7 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     metadata?: { first_name?: string; last_name?: string; username?: string }
   ) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -144,18 +157,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
       
-      if (!error) {
-        uiToast({
-          title: "Account created!",
-          description: "Please check your email to confirm your account.",
-        });
-        
-        toast("Account created!", {
-          description: "Please check your email to confirm your account.",
-        });
+      if (error) {
+        return { error };
+      }
+  
+      // Create profile after successful signup
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            username: metadata?.username || data.user.email?.split('@')[0] || 'user',
+            first_name: metadata?.first_name,
+            last_name: metadata?.last_name,
+            is_teacher: false,
+            xp: 0
+          });
+  
+        if (profileError) {
+          console.error('Profile creation error:', profileError.message);
+          return { error: profileError };
+        }
       }
       
-      return { error };
+      uiToast({
+        title: "Account created!",
+        description: "Please check your email to confirm your account.",
+      });
+      
+      return { error: null };
     } catch (error: any) {
       return { error };
     }
