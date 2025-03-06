@@ -9,13 +9,247 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      game_sessions: {
+        Row: {
+          created_at: string | null
+          current_question_index: number | null
+          ended_at: string | null
+          host_id: string
+          id: string
+          quiz_id: string
+          started_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_question_index?: number | null
+          ended_at?: string | null
+          host_id: string
+          id?: string
+          quiz_id: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_question_index?: number | null
+          ended_at?: string | null
+          host_id?: string
+          id?: string
+          quiz_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_sessions_host_id_fkey"
+            columns: ["host_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_sessions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_sessions: {
+        Row: {
+          answers: Json | null
+          created_at: string | null
+          game_session_id: string
+          id: string
+          player_id: string | null
+          player_name: string
+          score: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          answers?: Json | null
+          created_at?: string | null
+          game_session_id: string
+          id?: string
+          player_id?: string | null
+          player_name: string
+          score?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          answers?: Json | null
+          created_at?: string | null
+          game_session_id?: string
+          id?: string
+          player_id?: string | null
+          player_name?: string
+          score?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_sessions_game_session_id_fkey"
+            columns: ["game_session_id"]
+            isOneToOne: false
+            referencedRelation: "game_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_sessions_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          first_name: string | null
+          id: string
+          is_teacher: boolean | null
+          last_name: string | null
+          updated_at: string | null
+          username: string | null
+          xp: number | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          first_name?: string | null
+          id: string
+          is_teacher?: boolean | null
+          last_name?: string | null
+          updated_at?: string | null
+          username?: string | null
+          xp?: number | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          first_name?: string | null
+          id?: string
+          is_teacher?: boolean | null
+          last_name?: string | null
+          updated_at?: string | null
+          username?: string | null
+          xp?: number | null
+        }
+        Relationships: []
+      }
+      questions: {
+        Row: {
+          correct_answer: string | null
+          created_at: string | null
+          id: string
+          options: Json | null
+          order_num: number | null
+          points: number | null
+          question_text: string
+          question_type: string
+          quiz_id: string
+          time_limit: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          correct_answer?: string | null
+          created_at?: string | null
+          id?: string
+          options?: Json | null
+          order_num?: number | null
+          points?: number | null
+          question_text: string
+          question_type: string
+          quiz_id: string
+          time_limit?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          correct_answer?: string | null
+          created_at?: string | null
+          id?: string
+          options?: Json | null
+          order_num?: number | null
+          points?: number | null
+          question_text?: string
+          question_type?: string
+          quiz_id?: string
+          time_limit?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          created_at: string | null
+          creator_id: string
+          description: string | null
+          game_pin: string | null
+          id: string
+          is_public: boolean | null
+          shuffle_questions: boolean | null
+          time_limit: number | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          creator_id: string
+          description?: string | null
+          game_pin?: string | null
+          id?: string
+          is_public?: boolean | null
+          shuffle_questions?: boolean | null
+          time_limit?: number | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          creator_id?: string
+          description?: string | null
+          game_pin?: string | null
+          id?: string
+          is_public?: boolean | null
+          shuffle_questions?: boolean | null
+          time_limit?: number | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quizzes_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_unique_game_pin: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

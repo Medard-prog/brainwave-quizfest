@@ -1,179 +1,167 @@
 
-import DashboardLayout from "@/layouts/DashboardLayout";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  BarChart3,
-  BookOpenCheck,
-  Brain,
-  Clock,
-  PlusCircle,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { Plus, Search, Settings } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
+import { Button } from "@/components/ui/button";
+import DashboardLayout from "@/layouts/DashboardLayout";
+import { Quiz } from "@/lib/types";
 
 const Dashboard = () => {
-  // Mock data for recent quizzes
-  const recentQuizzes = [
-    { id: 1, title: "World Geography 101", plays: 45, questions: 10, date: "2023-05-12" },
-    { id: 2, title: "Basic Mathematics", plays: 32, questions: 15, date: "2023-05-10" },
-    { id: 3, title: "English Grammar", plays: 28, questions: 12, date: "2023-05-08" },
-  ];
+  const { user } = useAuth();
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Stats data
-  const stats = [
-    { label: "Total Quizzes", value: 24, icon: BookOpenCheck, color: "text-blue-600" },
-    { label: "Total Players", value: 362, icon: Users, color: "text-green-600" },
-    { label: "Questions Created", value: 487, icon: Brain, color: "text-purple-600" },
-    { label: "Play Time", value: "28h", icon: Clock, color: "text-amber-600" },
-  ];
+  useEffect(() => {
+    const fetchQuizzes = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('quizzes')
+          .select(`
+            *,
+            questions:questions(count)
+          `)
+          .eq('creator_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          throw error;
+        }
+        
+        // Process data to format question_count
+        const formattedData = data.map((quiz) => ({
+          ...quiz,
+          question_count: quiz.questions?.[0]?.count || 0,
+          questions: undefined // Remove the questions object
+        }));
+        
+        setQuizzes(formattedData);
+      } catch (error) {
+        console.error("Error fetching quizzes:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchQuizzes();
+  }, [user]);
+
+  // Filter quizzes based on search query
+  const filteredQuizzes = quizzes.filter(quiz => 
+    quiz.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">
-              Welcome back! Here's an overview of your quizzes.
+            <h1 className="text-2xl sm:text-3xl font-bold">My Quizzes</h1>
+            <p className="text-brainblitz-dark-gray mt-1">
+              Create, manage, and host interactive quizzes
             </p>
           </div>
-          <Button
-            asChild
-            className="bg-brainblitz-primary hover:bg-brainblitz-primary/90 rounded-xl text-white self-start"
-          >
-            <Link to="/create-quiz" className="inline-flex items-center">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create New Quiz
-            </Link>
-          </Button>
+          
+          <div className="flex gap-3 w-full sm:w-auto">
+            <Button asChild className="flex-1 sm:flex-none">
+              <Link to="/create-quiz" className="flex items-center gap-2">
+                <Plus size={18} />
+                <span>Create Quiz</span>
+              </Link>
+            </Button>
+          </div>
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <Card key={index} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className={`rounded-full p-2 bg-opacity-10 ${stat.color.replace('text-', 'bg-')} bg-opacity-20`}>
-                      <Icon className={`h-6 w-6 ${stat.color}`} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {stat.label}
-                      </p>
-                      <h2 className="text-3xl font-bold">{stat.value}</h2>
-                    </div>
+        
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search quizzes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brainblitz-primary"
+            />
+          </div>
+        </div>
+        
+        {isLoading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brainblitz-primary"></div>
+          </div>
+        ) : filteredQuizzes.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+            <div className="max-w-md mx-auto">
+              <h3 className="text-xl font-bold mb-2">No quizzes found</h3>
+              {searchQuery ? (
+                <p className="text-brainblitz-dark-gray mb-6">
+                  No quizzes match your search. Try a different query or clear your search.
+                </p>
+              ) : (
+                <p className="text-brainblitz-dark-gray mb-6">
+                  You haven't created any quizzes yet. Start by creating your first quiz!
+                </p>
+              )}
+              
+              {!searchQuery && (
+                <Button asChild>
+                  <Link to="/create-quiz" className="flex items-center gap-2">
+                    <Plus size={18} />
+                    <span>Create First Quiz</span>
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredQuizzes.map((quiz) => (
+              <div 
+                key={quiz.id} 
+                className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+              >
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-xl font-bold truncate">{quiz.title}</h3>
+                    <Button variant="ghost" size="icon" asChild className="text-gray-500 hover:text-brainblitz-primary">
+                      <Link to={`/edit-quiz/${quiz.id}`}>
+                        <Settings size={18} />
+                      </Link>
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Main content */}
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-          {/* Recent Quizzes */}
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Recent Quizzes</CardTitle>
-              <CardDescription>
-                Your most recently created quizzes
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentQuizzes.map((quiz) => (
-                  <div
-                    key={quiz.id}
-                    className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:shadow-sm transition-shadow"
+                  
+                  <p className="text-brainblitz-dark-gray mb-4 line-clamp-2">
+                    {quiz.description || "No description provided"}
+                  </p>
+                  
+                  <div className="flex justify-between items-center text-sm text-brainblitz-dark-gray">
+                    <span>{quiz.question_count} questions</span>
+                    <span>Game PIN: {quiz.game_pin || "Not set"}</span>
+                  </div>
+                </div>
+                
+                <div className="border-t border-gray-200 grid grid-cols-2 divide-x divide-gray-200">
+                  <Link 
+                    to={`/edit-quiz/${quiz.id}`}
+                    className="py-3 text-center font-medium text-brainblitz-primary hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="rounded-full p-2 bg-brainblitz-primary/10">
-                        <Brain className="h-5 w-5 text-brainblitz-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium">{quiz.title}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {quiz.questions} questions · Created on {new Date(quiz.date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-center">
-                        <p className="text-lg font-bold">{quiz.plays}</p>
-                        <p className="text-xs text-muted-foreground">Plays</p>
-                      </div>
-                      <Button variant="outline" size="sm" className="rounded-lg" asChild>
-                        <Link to={`/quizzes/${quiz.id}`}>View</Link>
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-
-                <div className="text-center pt-4">
-                  <Button variant="outline" asChild>
-                    <Link to="/my-quizzes">View All Quizzes</Link>
-                  </Button>
+                    Edit
+                  </Link>
+                  <Link 
+                    to={`/host/${quiz.id}`}
+                    className="py-3 text-center font-medium text-brainblitz-primary hover:bg-gray-50 transition-colors"
+                  >
+                    Host Game
+                  </Link>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Activity Feed */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Activity Feed</CardTitle>
-              <CardDescription>Recent activity on your quizzes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="rounded-full p-1 bg-green-100">
-                    <Users className="h-4 w-4 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">
-                      5 new students played "World Geography 101"
-                    </p>
-                    <p className="text-xs text-muted-foreground">2 hours ago</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="rounded-full p-1 bg-blue-100">
-                    <Trophy className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">
-                      "English Grammar" reached 25 players
-                    </p>
-                    <p className="text-xs text-muted-foreground">Yesterday</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="rounded-full p-1 bg-purple-100">
-                    <BarChart3 className="h-4 w-4 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">
-                      New analytics available for "Basic Mathematics"
-                    </p>
-                    <p className="text-xs text-muted-foreground">2 days ago</p>
-                  </div>
-                </div>
-                <div className="pt-4 text-center">
-                  <Button variant="outline" asChild>
-                    <Link to="/analytics">View Analytics</Link>
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

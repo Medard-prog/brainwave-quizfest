@@ -10,14 +10,14 @@ interface DashboardLayoutProps {
 
 const DashboardLayout = ({ 
   children, 
-  className = "", 
+  className = "",
 }: DashboardLayoutProps) => {
   return (
-    <div className="min-h-screen flex">
+    <div className="flex min-h-screen bg-brainblitz-background">
       <Sidebar />
       <main 
         className={cn(
-          "flex-1 ml-[70px] md:ml-[240px] p-6 bg-brainblitz-background",
+          "flex-1", 
           className
         )}
       >

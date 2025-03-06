@@ -1,172 +1,217 @@
 
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Input } from "@/components/ui/input";
+import { Eye, EyeOff, UserPlus } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import Logo from "@/components/Logo";
 import MainLayout from "@/layouts/MainLayout";
-import { ArrowLeft, Eye, EyeOff, UserPlus } from "lucide-react";
-import { toast } from "sonner";
 
 const Register = () => {
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [agreeTerms, setAgreeTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { signUp } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
-  
-  const handleSubmit = (e: React.FormEvent) => {
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name || !email || !password) {
-      toast.error("Please fill in all required fields");
+    if (password !== confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please make sure your passwords match",
+        variant: "destructive",
+      });
       return;
     }
-    
-    if (!agreeTerms) {
-      toast.error("You must agree to the terms and conditions");
+
+    if (password.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
       return;
     }
     
     setIsLoading(true);
     
-    // Simulate registration process
-    setTimeout(() => {
-      toast.success("Account created successfully!");
+    try {
+      const { error } = await signUp(email, password, {
+        first_name: firstName,
+        last_name: lastName,
+        username: username || undefined,
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Redirect to login page after successful registration
+      navigate("/login", { replace: true });
+      
+    } catch (error: any) {
+      toast({
+        title: "Registration failed",
+        description: error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-      navigate("/dashboard");
-    }, 1500);
+    }
   };
-  
+
   return (
-    <MainLayout>
-      <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-          <div>
-            <Link to="/" className="flex items-center text-brainblitz-medium-gray hover:text-brainblitz-primary transition-colors mb-6">
-              <ArrowLeft size={16} className="mr-2" />
-              Back to home
-            </Link>
+    <MainLayout withPadding={false}>
+      <div className="flex min-h-screen">
+        {/* Left side - Form */}
+        <div className="flex flex-col justify-center w-full px-4 sm:px-6 lg:px-8 py-12 sm:w-1/2">
+          <div className="mx-auto w-full max-w-sm">
+            <div className="flex justify-center mb-8">
+              <Logo size="lg" />
+            </div>
             
-            <h2 className="text-3xl font-bold text-center mb-2">Create your account</h2>
-            <p className="text-brainblitz-medium-gray text-center">
-              Join BrainBlitz and start creating amazing quizzes
+            <h2 className="text-center text-3xl font-bold tracking-tight mb-4">
+              Create your account
+            </h2>
+            <p className="text-center text-brainblitz-dark-gray mb-8">
+              Join BrainBlitz and start creating engaging quizzes
             </p>
-          </div>
-          
-          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-4">
+            
+            <form onSubmit={handleRegister} className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium mb-2">
+                    First Name
+                  </label>
+                  <input
+                    id="firstName"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brainblitz-primary"
+                    placeholder="John"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium mb-2">
+                    Last Name
+                  </label>
+                  <input
+                    id="lastName"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brainblitz-primary"
+                    placeholder="Doe"
+                  />
+                </div>
+              </div>
+              
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-brainblitz-dark-gray mb-1">
-                  Full name
+                <label htmlFor="username" className="block text-sm font-medium mb-2">
+                  Username (optional)
                 </label>
-                <Input
-                  id="name"
-                  name="name"
+                <input
+                  id="username"
                   type="text"
-                  autoComplete="name"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="appearance-none rounded-xl relative block w-full px-3 py-2 border border-gray-300"
-                  placeholder="John Doe"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brainblitz-primary"
+                  placeholder="johndoe"
                 />
               </div>
               
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-brainblitz-dark-gray mb-1">
+                <label htmlFor="email" className="block text-sm font-medium mb-2">
                   Email address
                 </label>
-                <Input
+                <input
                   id="email"
-                  name="email"
                   type="email"
-                  autoComplete="email"
-                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none rounded-xl relative block w-full px-3 py-2 border border-gray-300"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brainblitz-primary"
                   placeholder="name@example.com"
+                  required
                 />
               </div>
               
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-brainblitz-dark-gray mb-1">
+                <label htmlFor="password" className="block text-sm font-medium mb-2">
                   Password
                 </label>
                 <div className="relative">
-                  <Input
+                  <input
                     id="password"
-                    name="password"
                     type={showPassword ? "text" : "password"}
-                    autoComplete="new-password"
-                    required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="appearance-none rounded-xl relative block w-full px-3 py-2 border border-gray-300"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brainblitz-primary"
                     placeholder="••••••••"
+                    required
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-brainblitz-medium-gray hover:text-brainblitz-dark-gray transition-colors"
                     onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-brainblitz-medium-gray">
-                  Password must be at least 8 characters long
-                </p>
               </div>
-            </div>
-            
-            <div className="flex items-center">
-              <Checkbox 
-                id="agree-terms" 
-                checked={agreeTerms}
-                onCheckedChange={(checked) => setAgreeTerms(checked as boolean)}
-                className="h-4 w-4 text-brainblitz-primary border-gray-300 rounded"
-              />
-              <label htmlFor="agree-terms" className="ml-2 block text-sm text-brainblitz-dark-gray">
-                I agree to the{" "}
-                <Link to="/terms" className="text-brainblitz-primary hover:underline">
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link to="/privacy" className="text-brainblitz-primary hover:underline">
-                  Privacy Policy
-                </Link>
-              </label>
-            </div>
-            
-            <div>
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-6 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-brainblitz-primary hover:bg-brainblitz-primary/90 focus:outline-none"
-              >
+              
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2">
+                  Confirm Password
+                </label>
+                <input
+                  id="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brainblitz-primary"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              
+              <Button type="submit" className="w-full flex items-center justify-center gap-2" disabled={isLoading}>
                 {isLoading ? (
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <span className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></span>
                 ) : (
-                  <UserPlus className="mr-2 h-4 w-4" />
+                  <UserPlus size={18} />
                 )}
-                {isLoading ? "Creating account..." : "Create account"}
+                Create account
               </Button>
-            </div>
-          </form>
-          
-          <div className="mt-4 text-center">
-            <p className="text-sm text-brainblitz-medium-gray">
+            </form>
+            
+            <p className="mt-8 text-center text-sm text-brainblitz-dark-gray">
               Already have an account?{" "}
-              <Link to="/login" className="text-brainblitz-primary hover:text-brainblitz-primary/80 transition-colors">
-                Log in
+              <Link to="/login" className="font-semibold text-brainblitz-primary hover:underline">
+                Sign in
               </Link>
             </p>
+          </div>
+        </div>
+        
+        {/* Right side - Image */}
+        <div className="hidden sm:block sm:w-1/2 bg-brainblitz-primary">
+          <div className="h-full flex items-center justify-center p-12">
+            <div className="max-w-md text-white">
+              <h2 className="text-3xl font-bold mb-6">Take your teaching to the next level</h2>
+              <p className="text-lg opacity-90">
+                Create, share, and analyze quizzes with ease. Make learning fun and engaging for your students with BrainBlitz.
+              </p>
+            </div>
           </div>
         </div>
       </div>
