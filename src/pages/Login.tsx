@@ -1,31 +1,36 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
 import MainLayout from "@/layouts/MainLayout";
+import { toast } from "sonner";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAuth();
-  const { toast } = useToast();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // If user is already logged in, redirect to dashboard
+  useEffect(() => {
+    if (user) {
+      const from = location.state?.from?.pathname || "/dashboard";
+      navigate(from, { replace: true });
+    }
+  }, [user, navigate, location]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
-      toast({
-        title: "Error",
+      toast.error("Missing information", {
         description: "Please enter both email and password",
-        variant: "destructive",
       });
       return;
     }
@@ -39,15 +44,11 @@ const Login = () => {
         throw error;
       }
       
-      // Navigate to the page they were trying to access or dashboard
-      const from = location.state?.from?.pathname || "/dashboard";
-      navigate(from, { replace: true });
+      // Navigate handled by the useEffect above when user state changes
       
     } catch (error: any) {
-      toast({
-        title: "Login failed",
+      toast.error("Login failed", {
         description: error.message || "Please check your credentials and try again",
-        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -84,6 +85,7 @@ const Login = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brainblitz-primary"
                   placeholder="name@example.com"
                   required
+                  disabled={isLoading}
                 />
               </div>
               
@@ -105,11 +107,13 @@ const Login = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brainblitz-primary"
                     placeholder="••••••••"
                     required
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    disabled={isLoading}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
