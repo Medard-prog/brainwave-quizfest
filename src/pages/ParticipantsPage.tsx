@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
@@ -24,7 +25,8 @@ const ParticipantsPage = () => {
           .from('game_sessions')
           .select(`
             id,
-            quiz:quizzes(title),
+            quiz_id,
+            quizzes!inner(title),
             created_at,
             started_at,
             ended_at
@@ -55,7 +57,7 @@ const ParticipantsPage = () => {
               // Add quiz and session info to each player
               const playersWithSessionInfo = players.map(player => ({
                 ...player,
-                quiz_title: session.quiz?.title || "Unknown Quiz",
+                quiz_title: session.quizzes?.title || "Unknown Quiz",
                 session_date: new Date(session.created_at).toLocaleDateString(),
                 completed: session.ended_at ? true : false
               }));
