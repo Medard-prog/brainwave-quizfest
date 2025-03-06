@@ -5,11 +5,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Sparkles, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 interface AIQuizAssistantProps {
   onGenerateQuiz?: (questions: any[]) => void;
-  onGenerateQuestions?: (questions: any[]) => void; // Added this prop
-  onClose?: () => void; // Added this prop
+  onGenerateQuestions?: (questions: any[]) => void;
+  onClose?: () => void;
 }
 
 const AIQuizAssistant = ({ onGenerateQuiz, onGenerateQuestions, onClose }: AIQuizAssistantProps) => {
@@ -25,85 +26,44 @@ const AIQuizAssistant = ({ onGenerateQuiz, onGenerateQuestions, onClose }: AIQui
 
     setLoading(true);
     
-    // Simulate API call delay
-    setTimeout(() => {
-      // Mock generated questions
-      const mockQuestions = [
-        {
-          id: crypto.randomUUID(),
-          question_text: "What is the capital of France?",
-          question_type: "multiple_choice",
-          options: [
-            { id: crypto.randomUUID(), text: "London" },
-            { id: crypto.randomUUID(), text: "Berlin" },
-            { id: crypto.randomUUID(), text: "Paris" },
-            { id: crypto.randomUUID(), text: "Madrid" }
-          ],
-          correct_answer: "Paris",
-          points: 10,
-          time_limit: 30
-        },
-        {
-          id: crypto.randomUUID(),
-          question_text: "Which planet is known as the Red Planet?",
-          question_type: "multiple_choice",
-          options: [
-            { id: crypto.randomUUID(), text: "Earth" },
-            { id: crypto.randomUUID(), text: "Mars" },
-            { id: crypto.randomUUID(), text: "Jupiter" },
-            { id: crypto.randomUUID(), text: "Venus" }
-          ],
-          correct_answer: "Mars",
-          points: 10,
-          time_limit: 30
-        },
-        {
-          id: crypto.randomUUID(),
-          question_text: "Who painted the Mona Lisa?",
-          question_type: "multiple_choice",
-          options: [
-            { id: crypto.randomUUID(), text: "Vincent van Gogh" },
-            { id: crypto.randomUUID(), text: "Leonardo da Vinci" },
-            { id: crypto.randomUUID(), text: "Pablo Picasso" },
-            { id: crypto.randomUUID(), text: "Michelangelo" }
-          ],
-          correct_answer: "Leonardo da Vinci",
-          points: 10,
-          time_limit: 30
-        },
-        {
-          id: crypto.randomUUID(),
-          question_text: "What is the largest ocean on Earth?",
-          question_type: "multiple_choice",
-          options: [
-            { id: crypto.randomUUID(), text: "Atlantic Ocean" },
-            { id: crypto.randomUUID(), text: "Indian Ocean" },
-            { id: crypto.randomUUID(), text: "Arctic Ocean" },
-            { id: crypto.randomUUID(), text: "Pacific Ocean" }
-          ],
-          correct_answer: "Pacific Ocean",
-          points: 10,
-          time_limit: 30
-        },
-      ];
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-quiz', {
+        body: { topic, instructions }
+      });
       
+      if (error) {
+        console.error("Error generating quiz:", error);
+        toast.error("Failed to generate quiz");
+        setLoading(false);
+        return;
+      }
+      
+      if (data?.questions && Array.isArray(data.questions)) {
+        toast.success("Quiz generated successfully!");
+        
+        // Call both callback props if they exist
+        if (onGenerateQuiz) {
+          onGenerateQuiz(data.questions);
+        }
+        
+        if (onGenerateQuestions) {
+          onGenerateQuestions(data.questions);
+        }
+        
+        // Close the modal after generation if onClose exists
+        if (onClose) {
+          onClose();
+        }
+      } else {
+        toast.error("Invalid response format from AI");
+        console.error("Invalid response:", data);
+      }
+    } catch (error) {
+      console.error("Error generating quiz:", error);
+      toast.error("Failed to generate quiz");
+    } finally {
       setLoading(false);
-      toast.success("Quiz generated successfully!");
-      
-      // Call both callback props if they exist
-      if (onGenerateQuiz) {
-        onGenerateQuiz(mockQuestions);
-      }
-      
-      if (onGenerateQuestions) {
-        onGenerateQuestions(mockQuestions);
-      }
-      
-      // Close the modal after generation if onClose exists
-      if (onClose) {
-        onClose();
-      }
-    }, 2000);
+    }
   };
 
   return (

@@ -70,7 +70,18 @@ const Navbar = ({ transparent = false }: NavbarProps) => {
           >
             <Link to="/join">Join Game</Link>
           </Button>
-          {user ? <AvatarMenu user={{ name: user.first_name || user.username, email: user.email, avatar: user.avatar_url }} /> : (
+          {user ? (
+            <div className="flex items-center gap-4">
+              <Button
+                asChild
+                variant="ghost"
+                className="text-brainblitz-primary hover:text-brainblitz-primary/80"
+              >
+                <Link to="/dashboard">Dashboard</Link>
+              </Button>
+              <AvatarMenu user={{ name: user.first_name || user.username, email: user.email, avatar: user.avatar_url }} />
+            </div>
+          ) : (
             <div className="flex items-center gap-4">
               <Link 
                 to="/login"

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Session, User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
@@ -29,21 +30,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
     
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) {
-        setSession(session);
-        if (session?.user) {
-          fetchUserProfile(session.user);
-        } else {
-          setIsLoading(false);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (mounted) {
+          setSession(session);
+          
+          if (session?.user) {
+            await fetchUserProfile(session.user);
+          } else {
+            setIsLoading(false);
+          }
         }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+        setIsLoading(false);
       }
-    });
+    };
+    
+    initializeAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (mounted) {
+          console.log("Auth state change:", event, session?.user?.id);
           setSession(session);
           
           if (event === 'SIGNED_IN' && session?.user) {
@@ -70,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('id', supabaseUser.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching user profile:', error.message);
@@ -81,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data) {
         setUser({
           id: data.id,
-          email: supabaseUser.email,
+          email: supabaseUser.email || '',
           username: data.username,
           avatar_url: data.avatar_url,
           first_name: data.first_name,
@@ -89,6 +101,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           is_teacher: data.is_teacher,
           xp: data.xp
         });
+      } else {
+        // Create a default user profile if none exists
+        const defaultProfile = {
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
+          username: supabaseUser.email?.split('@')[0] || 'user',
+          avatar_url: null,
+          first_name: null,
+          last_name: null,
+          is_teacher: false,
+          xp: 0
+        };
+        setUser(defaultProfile);
       }
     } catch (error: any) {
       console.error('Error fetching user profile:', error.message);
