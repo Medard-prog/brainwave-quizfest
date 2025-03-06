@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -29,7 +28,6 @@ const GamePresentation = () => {
     
     const fetchGameData = async () => {
       try {
-        // Fetch game session
         const { data: sessionData, error: sessionError } = await supabase
           .from('game_sessions')
           .select(`
@@ -46,7 +44,6 @@ const GamePresentation = () => {
         setQuiz(sessionData.quiz);
         setCurrentQuestionIndex(sessionData.current_question_index || 0);
         
-        // Fetch questions for the quiz
         const { data: questionsData, error: questionsError } = await supabase
           .from('questions')
           .select('*')
@@ -56,7 +53,6 @@ const GamePresentation = () => {
         if (questionsError) throw questionsError;
         setQuestions(questionsData || []);
         
-        // Fetch players
         fetchPlayers();
       } catch (error) {
         console.error("Error fetching game data:", error);
@@ -69,7 +65,6 @@ const GamePresentation = () => {
     
     fetchGameData();
     
-    // Subscribe to game session updates
     const subscription = supabase
       .channel(`game_session:${sessionId}`)
       .on('postgres_changes', { 
@@ -83,7 +78,6 @@ const GamePresentation = () => {
       })
       .subscribe();
     
-    // Subscribe to player updates
     const playerSubscription = supabase
       .channel(`player_sessions:${sessionId}`)
       .on('postgres_changes', { 
@@ -121,7 +115,6 @@ const GamePresentation = () => {
   };
 
   useEffect(() => {
-    // Timer effect
     if (!timerActive || timeLeft <= 0) return;
     
     const timer = setTimeout(() => {
@@ -142,14 +135,12 @@ const GamePresentation = () => {
     setShowQuestion(true);
     setShowAnswer(false);
     
-    // Set timer if question has a time limit
     const question = questions[currentQuestionIndex];
     if (question.time_limit) {
       setTimeLeft(question.time_limit);
       setTimerActive(true);
     }
     
-    // Update game session with current question index
     try {
       await supabase
         .from('game_sessions')
@@ -167,14 +158,12 @@ const GamePresentation = () => {
       setShowAnswer(false);
       setTimerActive(false);
     } else {
-      // Last question reached, show final results
       setGameEnded(true);
     }
   };
 
   const endGame = async () => {
     try {
-      // Update game session to ended
       const { error } = await supabase
         .from('game_sessions')
         .update({
@@ -219,7 +208,6 @@ const GamePresentation = () => {
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-brainblitz-primary/5 to-brainblitz-accent/5">
-      {/* Header */}
       <header className="bg-white shadow-sm p-4 flex justify-between items-center">
         <h1 className="text-xl font-bold">{quiz.title}</h1>
         <div className="flex items-center gap-4">
@@ -234,7 +222,6 @@ const GamePresentation = () => {
       
       <main className="flex-1 overflow-hidden flex flex-col">
         {gameEnded ? (
-          /* Final Results Screen */
           <div className="flex-1 flex flex-col items-center justify-center p-8">
             <div className="max-w-3xl w-full bg-white rounded-xl shadow-lg overflow-hidden">
               <div className="bg-gradient-to-r from-brainblitz-primary to-indigo-600 p-8 text-white text-center">
@@ -249,9 +236,8 @@ const GamePresentation = () => {
                 ) : (
                   <>
                     <div className="space-y-4 mb-8">
-                      {/* Top 3 podium */}
-                      <div className="flex justify-center items-end h-48 gap-4 mb-8">
-                        {players.length > 1 && (
+                      {players.length > 1 && (
+                        <div className="flex justify-center items-end h-48 gap-4 mb-8">
                           <div className="flex flex-col items-center">
                             <div className="text-lg font-bold mb-2">{players[1]?.player_name}</div>
                             <div className="bg-gray-300 w-24 h-28 flex items-center justify-center rounded-t-lg">
@@ -259,47 +245,46 @@ const GamePresentation = () => {
                             </div>
                             <div className="text-xl font-bold">2nd</div>
                           </div>
-                        )}
-                        
-                        {players.length > 0 && (
-                          <div className="flex flex-col items-center">
-                            <div className="text-lg font-bold mb-2">{players[0]?.player_name}</div>
-                            <div className="bg-brainblitz-primary w-24 h-36 flex items-center justify-center rounded-t-lg text-white">
-                              <div className="text-2xl font-bold">{players[0]?.score}</div>
-                            </div>
-                            <div className="text-xl font-bold">1st</div>
-                          </div>
-                        )}
-                        
-                        {players.length > 2 && (
-                          <div className="flex flex-col items-center">
-                            <div className="text-lg font-bold mb-2">{players[2]?.player_name}</div>
-                            <div className="bg-brainblitz-accent w-24 h-24 flex items-center justify-center rounded-t-lg">
-                              <div className="text-2xl font-bold">{players[2]?.score}</div>
-                            </div>
-                            <div className="text-xl font-bold">3rd</div>
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                       
-                      {/* Rest of leaderboard */}
-                      {players.length > 3 && (
-                        <div className="mt-8">
-                          <h3 className="text-lg font-bold mb-4">Leaderboard</h3>
-                          <div className="space-y-2">
-                            {players.slice(3).map((player, index) => (
-                              <div key={player.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  <div className="text-brainblitz-dark-gray font-medium">{index + 4}.</div>
-                                  <div className="font-medium">{player.player_name}</div>
-                                </div>
-                                <div className="font-bold">{player.score}</div>
-                              </div>
-                            ))}
+                      {players.length > 0 && (
+                        <div className="flex flex-col items-center">
+                          <div className="text-lg font-bold mb-2">{players[0]?.player_name}</div>
+                          <div className="bg-brainblitz-primary w-24 h-36 flex items-center justify-center rounded-t-lg text-white">
+                            <div className="text-2xl font-bold">{players[0]?.score}</div>
                           </div>
+                          <div className="text-xl font-bold">1st</div>
+                        </div>
+                      )}
+                      
+                      {players.length > 2 && (
+                        <div className="flex flex-col items-center">
+                          <div className="text-lg font-bold mb-2">{players[2]?.player_name}</div>
+                          <div className="bg-brainblitz-accent w-24 h-24 flex items-center justify-center rounded-t-lg">
+                            <div className="text-2xl font-bold">{players[2]?.score}</div>
+                          </div>
+                          <div className="text-xl font-bold">3rd</div>
                         </div>
                       )}
                     </div>
+                    
+                    {players.length > 3 && (
+                      <div className="mt-8">
+                        <h3 className="text-lg font-bold mb-4">Leaderboard</h3>
+                        <div className="space-y-2">
+                          {players.slice(3).map((player, index) => (
+                            <div key={player.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <div className="text-brainblitz-dark-gray font-medium">{index + 4}.</div>
+                                <div className="font-medium">{player.player_name}</div>
+                              </div>
+                              <div className="font-bold">{player.score}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
                 
@@ -312,7 +297,6 @@ const GamePresentation = () => {
             </div>
           </div>
         ) : !showQuestion ? (
-          /* Question Preview Screen */
           <div className="flex-1 flex flex-col items-center justify-center p-8">
             <div className="max-w-3xl w-full text-center">
               <h2 className="text-2xl sm:text-3xl font-bold mb-4">
@@ -333,7 +317,6 @@ const GamePresentation = () => {
             </div>
           </div>
         ) : (
-          /* Active Question Screen */
           <div className="flex-1 flex flex-col p-4 sm:p-8">
             <div className="flex justify-between items-center mb-4">
               {timerActive && (
@@ -398,7 +381,7 @@ const GamePresentation = () => {
                     </div>
                   )}
                   
-                  {currentQuestion.question_type === 'true_false' && (
+                  {currentQuestion.correct_answer === 'True' || currentQuestion.correct_answer === 'False' && (
                     <div className="grid grid-cols-2 gap-4 mt-6">
                       <div 
                         className={`p-4 rounded-lg border-2 text-center ${
@@ -454,3 +437,4 @@ const GamePresentation = () => {
 };
 
 export default GamePresentation;
+

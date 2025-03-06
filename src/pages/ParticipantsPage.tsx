@@ -1,12 +1,11 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import DashboardLayout from "@/layouts/DashboardLayout";
-import { DataTable } from "@/components/ui/datatable";
 import { Button } from "@/components/ui/button";
 import { Download, Search, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const ParticipantsPage = () => {
   const { user } = useAuth();
@@ -56,7 +55,7 @@ const ParticipantsPage = () => {
               // Add quiz and session info to each player
               const playersWithSessionInfo = players.map(player => ({
                 ...player,
-                quiz_title: session.quiz.title,
+                quiz_title: session.quiz?.title || "Unknown Quiz",
                 session_date: new Date(session.created_at).toLocaleDateString(),
                 completed: session.ended_at ? true : false
               }));

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -8,6 +7,7 @@ import DashboardLayout from "@/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Copy, CheckCircle, QrCode, Users, Timer, X } from "lucide-react";
 import { Quiz, Question } from "@/lib/types";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const HostGame = () => {
   const { quizId } = useParams<{ quizId: string }>();
@@ -26,7 +26,6 @@ const HostGame = () => {
     
     const fetchQuizAndQuestions = async () => {
       try {
-        // Fetch quiz data
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
           .select('*')
@@ -38,7 +37,6 @@ const HostGame = () => {
         
         setQuiz(quizData);
         
-        // Fetch questions for the quiz
         const { data: questionsData, error: questionsError } = await supabase
           .from('questions')
           .select('*')
@@ -48,7 +46,6 @@ const HostGame = () => {
         if (questionsError) throw questionsError;
         setQuestions(questionsData || []);
         
-        // Generate or retrieve game pin if not exists
         if (!quizData.game_pin) {
           const { data: pinData } = await supabase
             .rpc('generate_unique_game_pin');
@@ -78,7 +75,6 @@ const HostGame = () => {
   useEffect(() => {
     if (!quizId || !user) return;
     
-    // Check for existing active game session
     const checkGameSession = async () => {
       try {
         const { data, error } = await supabase
@@ -133,7 +129,6 @@ const HostGame = () => {
   };
 
   const subscribeToPlayers = (sessionId: string) => {
-    // Subscribe to player_sessions table for this game session
     const subscription = supabase
       .channel(`player_sessions:${sessionId}`)
       .on('postgres_changes', { 
@@ -147,7 +142,6 @@ const HostGame = () => {
       })
       .subscribe();
     
-    // Initial fetch of players
     fetchPlayers(sessionId);
     
     return () => {
@@ -175,7 +169,6 @@ const HostGame = () => {
     try {
       setIsStarting(true);
       
-      // Update game session to started
       const { error } = await supabase
         .from('game_sessions')
         .update({
@@ -186,7 +179,6 @@ const HostGame = () => {
       
       if (error) throw error;
       
-      // Navigate to the game presentation view
       navigate(`/present/${gameSession.id}`);
     } catch (error) {
       console.error("Error starting game:", error);
@@ -201,7 +193,6 @@ const HostGame = () => {
     try {
       setIsLoading(true);
       
-      // Update game session to ended
       const { error } = await supabase
         .from('game_sessions')
         .update({
