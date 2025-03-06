@@ -6,12 +6,14 @@ import Logo from "./Logo";
 import AvatarMenu from "./AvatarMenu";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 interface NavbarProps {
   transparent?: boolean;
 }
 
 const Navbar = ({ transparent = false }: NavbarProps) => {
+  const { user } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -68,7 +70,22 @@ const Navbar = ({ transparent = false }: NavbarProps) => {
           >
             <Link to="/join">Join Game</Link>
           </Button>
-          <AvatarMenu />
+          {user ? <AvatarMenu user={{ name: user.first_name || user.username, email: user.email, avatar: user.avatar_url }} /> : (
+            <div className="flex items-center gap-4">
+              <Link 
+                to="/login"
+                className="text-brainblitz-text hover:text-brainblitz-primary transition-colors"
+              >
+                Log in
+              </Link>
+              <Link 
+                to="/register"
+                className="bg-brainblitz-primary text-white px-4 py-2 rounded-xl hover:bg-brainblitz-primary/90 transition-all"
+              >
+                Sign up
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -102,20 +119,32 @@ const Navbar = ({ transparent = false }: NavbarProps) => {
               Join Game
             </Link>
             <div className="pt-4 border-t border-gray-200">
-              <Link
-                to="/login"
-                className="block py-2 text-brainblitz-text hover:text-brainblitz-primary transition-colors"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Log in
-              </Link>
-              <Link
-                to="/register"
-                className="block py-2 mt-2 bg-brainblitz-primary text-white rounded-xl px-4 text-center"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Sign up
-              </Link>
+              {user ? (
+                <Link
+                  to="/dashboard"
+                  className="block py-2 mt-2 bg-brainblitz-primary text-white rounded-xl px-4 text-center"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="block py-2 text-brainblitz-text hover:text-brainblitz-primary transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="block py-2 mt-2 bg-brainblitz-primary text-white rounded-xl px-4 text-center"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Sign up
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

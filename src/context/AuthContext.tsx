@@ -4,6 +4,7 @@ import { Session, User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { User } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface AuthContextType {
   session: Session | null;
@@ -22,34 +23,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
 
   useEffect(() => {
+    let mounted = true;
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        fetchUserProfile(session.user);
+      if (mounted) {
+        setSession(session);
+        if (session?.user) {
+          fetchUserProfile(session.user);
+        } else {
+          setIsLoading(false);
+        }
       }
-      setIsLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        setSession(session);
-        
-        if (event === 'SIGNED_IN' && session?.user) {
-          await fetchUserProfile(session.user);
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
+        if (mounted) {
+          setSession(session);
+          
+          if (event === 'SIGNED_IN' && session?.user) {
+            await fetchUserProfile(session.user);
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+            setIsLoading(false);
+          } else {
+            setIsLoading(false);
+          }
         }
-        
-        setIsLoading(false);
       }
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -63,7 +73,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error) {
-        throw error;
+        console.error('Error fetching user profile:', error.message);
+        setIsLoading(false);
+        return;
       }
 
       if (data) {
@@ -80,6 +92,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error: any) {
       console.error('Error fetching user profile:', error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -98,8 +112,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (!error) {
-        toast({
+        uiToast({
           title: "Account created!",
+          description: "Please check your email to confirm your account.",
+        });
+        
+        toast("Account created!", {
           description: "Please check your email to confirm your account.",
         });
       }
@@ -116,8 +134,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email,
         password,
       });
+      
+      if (error) {
+        toast.error("Login failed", {
+          description: error.message,
+        });
+      }
+      
       return { error };
     } catch (error: any) {
+      toast.error("Login failed", {
+        description: error.message,
+      });
       return { error };
     }
   };
@@ -125,6 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    toast.success("Logged out successfully");
   };
 
   const resetPassword = async (email: string) => {
@@ -134,8 +163,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (!error) {
-        toast({
+        uiToast({
           title: "Password reset email sent",
+          description: "Check your email for the password reset link",
+        });
+        
+        toast("Password reset email sent", {
           description: "Check your email for the password reset link",
         });
       }
@@ -153,8 +186,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (!error) {
-        toast({
+        uiToast({
           title: "Password updated",
+          description: "Your password has been successfully updated",
+        });
+        
+        toast("Password updated", {
           description: "Your password has been successfully updated",
         });
       }

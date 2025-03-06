@@ -18,6 +18,12 @@ import Dashboard from "./pages/Dashboard";
 import CreateQuiz from "./pages/CreateQuiz";
 import Join from "./pages/Join";
 import NotFound from "./pages/NotFound";
+import HostGame from "./pages/HostGame";
+import GamePresentation from "./pages/GamePresentation";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import ParticipantsPage from "./pages/ParticipantsPage";
+import SettingsPage from "./pages/SettingsPage";
+import Logout from "./pages/Logout";
 
 const queryClient = new QueryClient();
 
@@ -38,10 +44,16 @@ const App = () => (
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/logout" element={<Logout />} />
             
             {/* Protected routes - authenticated users only */}
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/participants" element={<ProtectedRoute><ParticipantsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/create-quiz" element={<ProtectedRoute><CreateQuiz /></ProtectedRoute>} />
+            <Route path="/host/:quizId" element={<ProtectedRoute><HostGame /></ProtectedRoute>} />
+            <Route path="/present/:sessionId" element={<ProtectedRoute><GamePresentation /></ProtectedRoute>} />
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />

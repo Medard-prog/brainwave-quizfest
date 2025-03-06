@@ -9,8 +9,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, Settings, User } from "lucide-react";
-import { Link } from "react-router-dom";
+import { LogOut, Settings, User, BarChart3, Users } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 interface AvatarMenuProps {
   user?: {
@@ -22,13 +24,21 @@ interface AvatarMenuProps {
 
 const AvatarMenu = ({ user }: AvatarMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
   
   // This would be replaced by actual auth logic
   const isLoggedIn = !!user;
   
-  const handleLogout = () => {
-    // Implement logout logic here
-    console.log("Logging out");
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast.success("Logged out successfully");
+      navigate("/");
+    } catch (error) {
+      console.error("Error logging out:", error);
+      toast.error("Failed to log out");
+    }
   };
   
   if (!isLoggedIn) {
@@ -76,13 +86,25 @@ const AvatarMenu = ({ user }: AvatarMenuProps) => {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/profile" className="cursor-pointer flex items-center gap-2">
+          <Link to="/dashboard" className="cursor-pointer flex items-center gap-2">
             <User size={16} />
-            <span>Profile</span>
+            <span>Dashboard</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/settings" className="cursor-pointer flex items-center gap-2">
+          <Link to="/dashboard/analytics" className="cursor-pointer flex items-center gap-2">
+            <BarChart3 size={16} />
+            <span>Analytics</span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/dashboard/participants" className="cursor-pointer flex items-center gap-2">
+            <Users size={16} />
+            <span>Participants</span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/dashboard/settings" className="cursor-pointer flex items-center gap-2">
             <Settings size={16} />
             <span>Settings</span>
           </Link>

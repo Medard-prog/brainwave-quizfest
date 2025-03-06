@@ -1,44 +1,41 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import MainLayout from "@/layouts/MainLayout";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 const Join = () => {
   const [gamePin, setGamePin] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
   const navigate = useNavigate();
 
   // Pre-populate player name if user is logged in
-  useState(() => {
+  useEffect(() => {
     if (user) {
       setPlayerName(user.first_name || user.username || "");
     }
-  });
+  }, [user]);
 
   const handleJoinGame = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!gamePin) {
-      toast({
-        title: "Game PIN required",
-        description: "Please enter a valid Game PIN to join",
-        variant: "destructive",
+      toast.error("Game PIN required", {
+        description: "Please enter a valid Game PIN to join"
       });
       return;
     }
 
     if (!playerName) {
-      toast({
-        title: "Name required",
-        description: "Please enter your name to join the game",
-        variant: "destructive",
+      toast.error("Name required", {
+        description: "Please enter your name to join the game"
       });
       return;
     }
@@ -53,7 +50,7 @@ const Join = () => {
         .eq('game_pin', gamePin)
         .single();
       
-      if (quizError || !quizData) {
+      if (quizError) {
         throw new Error("Invalid game PIN. Please check and try again.");
       }
       
@@ -63,10 +60,32 @@ const Join = () => {
         .select('id')
         .eq('quiz_id', quizData.id)
         .eq('status', 'waiting')
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
       
-      if (sessionError || !sessionData) {
+      if (sessionError) {
         throw new Error("No active game found with this PIN. The game may have ended or not started yet.");
+      }
+      
+      // Check if player already exists in this session
+      if (user) {
+        const { data: existingPlayer } = await supabase
+          .from('player_sessions')
+          .select('id')
+          .eq('game_session_id', sessionData.id)
+          .eq('player_id', user.id)
+          .maybeSingle();
+        
+        if (existingPlayer) {
+          navigate(`/play/${sessionData.id}`, { 
+            state: { 
+              playerSession: existingPlayer,
+              playerName: playerName
+            } 
+          });
+          return;
+        }
       }
       
       // Create a player session
@@ -82,12 +101,12 @@ const Join = () => {
         .select()
         .single();
       
-      if (playerError || !playerSession) {
+      if (playerError) {
         throw new Error("Failed to join the game. Please try again.");
       }
       
       // Navigate to the game lobby
-      navigate(`/lobby/${sessionData.id}`, { 
+      navigate(`/play/${sessionData.id}`, { 
         state: { 
           playerSession: playerSession,
           playerName: playerName
@@ -95,10 +114,8 @@ const Join = () => {
       });
       
     } catch (error: any) {
-      toast({
-        title: "Failed to join game",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
+      toast.error("Failed to join game", {
+        description: error.message || "Something went wrong. Please try again."
       });
     } finally {
       setIsLoading(false);
