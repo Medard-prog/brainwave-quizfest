@@ -78,7 +78,6 @@ const ParticipantsPage = () => {
     fetchParticipants();
   }, [user]);
 
-  // Filter participants when search query changes
   useEffect(() => {
     if (searchQuery) {
       const filtered = participants.filter(

@@ -381,19 +381,19 @@ const GamePresentation = () => {
                     </div>
                   )}
                   
-                  {currentQuestion.correct_answer === 'True' || currentQuestion.correct_answer === 'False' && (
+                  {(currentQuestion.correct_answer === "True" || currentQuestion.correct_answer === "False") && (
                     <div className="grid grid-cols-2 gap-4 mt-6">
                       <div 
                         className={`p-4 rounded-lg border-2 text-center ${
                           showAnswer 
-                            ? currentQuestion.correct_answer === 'True'
+                            ? currentQuestion.correct_answer === "True"
                               ? 'border-green-500 bg-green-50'
                               : 'border-gray-200 bg-white'
                             : 'border-gray-200 bg-white'
                         }`}
                       >
                         <div className="flex items-center justify-center">
-                          {showAnswer && currentQuestion.correct_answer === 'True' && (
+                          {showAnswer && currentQuestion.correct_answer === "True" && (
                             <CheckCircle className="text-green-500 mr-2" size={20} />
                           )}
                           <span className="text-lg font-medium">True</span>
@@ -402,14 +402,14 @@ const GamePresentation = () => {
                       <div 
                         className={`p-4 rounded-lg border-2 text-center ${
                           showAnswer 
-                            ? currentQuestion.correct_answer === 'False'
+                            ? currentQuestion.correct_answer === "False"
                               ? 'border-green-500 bg-green-50'
                               : 'border-gray-200 bg-white'
                             : 'border-gray-200 bg-white'
                         }`}
                       >
                         <div className="flex items-center justify-center">
-                          {showAnswer && currentQuestion.correct_answer === 'False' && (
+                          {showAnswer && currentQuestion.correct_answer === "False" && (
                             <CheckCircle className="text-green-500 mr-2" size={20} />
                           )}
                           <span className="text-lg font-medium">False</span>
@@ -437,4 +437,3 @@ const GamePresentation = () => {
 };
 
 export default GamePresentation;
-
