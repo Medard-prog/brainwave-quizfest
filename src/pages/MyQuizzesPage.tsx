@@ -36,7 +36,7 @@ const MyQuizzesPage = () => {
         console.log("Fetching quizzes for user:", user.id);
         setIsLoading(true);
         
-        // First, fetch the basic quiz data without the nested counts
+        // Get quizzes - we'll do a separate query for questions
         const { data: quizzesData, error: quizzesError } = await supabase
           .from('quizzes')
           .select('*')
@@ -48,50 +48,80 @@ const MyQuizzesPage = () => {
           throw quizzesError;
         }
         
-        console.log("Basic quiz data fetched:", quizzesData?.length || 0);
+        console.log("Basic quiz data fetched:", quizzesData);
         
-        // For each quiz, get question count and game count separately
-        const enhancedQuizzes = await Promise.all(quizzesData.map(async (quiz) => {
-          try {
-            // Get question count
-            const { count: questionCount, error: questionError } = await supabase
+        if (!quizzesData || quizzesData.length === 0) {
+          setQuizzes([]);
+          return;
+        }
+        
+        // Get all quiz IDs
+        const quizIds = quizzesData.map(quiz => quiz.id);
+        
+        // Get question count for all quizzes in a single query
+        const { data: questionsCountData, error: questionsCountError } = await supabase
+          .from('questions')
+          .select('quiz_id, count')
+          .in('quiz_id', quizIds)
+          .select('quiz_id', { count: 'exact', groupBy: 'quiz_id' });
+        
+        if (questionsCountError) {
+          console.error("Error fetching question counts:", questionsCountError);
+          // We'll continue and just set count to 0
+        }
+        
+        // Prepare a map of quiz_id -> question_count
+        let questionCountMap: Record<string, number> = {};
+        if (questionsCountData) {
+          questionCountMap = questionsCountData.reduce((acc, curr) => {
+            acc[curr.quiz_id] = parseInt(curr.count);
+            return acc;
+          }, {} as Record<string, number>);
+        }
+        
+        // Get game counts with a separate query
+        const { data: gameSessionsData, error: gameSessionsError } = await supabase
+          .from('game_sessions')
+          .select('quiz_id, count')
+          .in('quiz_id', quizIds)
+          .select('quiz_id', { count: 'exact', groupBy: 'quiz_id' });
+        
+        // Prepare a map of quiz_id -> game_count
+        let gameCountMap: Record<string, number> = {};
+        if (gameSessionsData) {
+          gameCountMap = gameSessionsData.reduce((acc, curr) => {
+            acc[curr.quiz_id] = parseInt(curr.count);
+            return acc;
+          }, {} as Record<string, number>);
+        }
+        
+        // Now manually fetch all question counts the old way if needed
+        if (!questionsCountData) {
+          // For each quiz, manually get the question count separately
+          for (const quiz of quizzesData) {
+            const { count, error } = await supabase
               .from('questions')
               .select('*', { count: 'exact', head: true })
               .eq('quiz_id', quiz.id);
               
-            if (questionError) {
-              console.error(`Error fetching question count for quiz ${quiz.id}:`, questionError);
+            if (!error) {
+              questionCountMap[quiz.id] = count || 0;
             }
-            
-            // Get game session count
-            const { count: gameCount, error: gameError } = await supabase
-              .from('game_sessions')
-              .select('*', { count: 'exact', head: true })
-              .eq('quiz_id', quiz.id);
-              
-            if (gameError) {
-              console.error(`Error fetching game count for quiz ${quiz.id}:`, gameError);
-            }
-            
-            return {
-              ...quiz,
-              question_count: questionCount || 0,
-              game_count: gameCount || 0
-            };
-          } catch (err) {
-            console.error(`Error enhancing quiz ${quiz.id}:`, err);
-            return {
-              ...quiz,
-              question_count: 0,
-              game_count: 0
-            };
           }
+        }
+        
+        // Add the counts to quizzes
+        const enhancedQuizzes = quizzesData.map(quiz => ({
+          ...quiz,
+          question_count: questionCountMap[quiz.id] || 0,
+          game_count: gameCountMap[quiz.id] || 0
         }));
         
         console.log("Enhanced quizzes:", enhancedQuizzes);
         setQuizzes(enhancedQuizzes);
       } catch (error) {
         console.error("Error in fetchQuizzes:", error);
+        toast.error("Failed to load quizzes data");
       } finally {
         setIsLoading(false);
       }

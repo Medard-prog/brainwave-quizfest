@@ -50,6 +50,8 @@ const EditQuestion = () => {
       try {
         setIsLoading(true);
         
+        console.log("Fetching quiz data for ID:", quizId);
+        
         // Fetch quiz data
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
@@ -74,6 +76,8 @@ const EditQuestion = () => {
         
         // If editing an existing question, fetch it
         if (questionId && !isNew) {
+          console.log("Fetching question data for ID:", questionId);
+          
           const { data: questionData, error: questionError } = await supabase
             .from('questions')
             .select('*')
@@ -88,9 +92,11 @@ const EditQuestion = () => {
             return;
           }
           
+          console.log("Question data fetched:", questionData);
+          
           setQuestionText(questionData.question_text);
           setQuestionType(questionData.question_type);
-          setOptions(questionData.options);
+          setOptions(questionData.options || []);
           setCorrectAnswer(questionData.correct_answer);
           setPoints(questionData.points || 10);
           setTimeLimit(questionData.time_limit);
@@ -169,6 +175,8 @@ const EditQuestion = () => {
     try {
       setIsSaving(true);
       
+      console.log("Saving question for quiz:", quizId);
+      
       // Get the current order number if creating a new question
       let orderNum = 1;
       if (isNew) {
@@ -192,6 +200,8 @@ const EditQuestion = () => {
         time_limit: timeLimit,
         ...(isNew && { order_num: orderNum })
       };
+      
+      console.log("Saving question with data:", questionData);
       
       let result;
       
@@ -217,6 +227,8 @@ const EditQuestion = () => {
         toast.error("Failed to save question");
         return;
       }
+      
+      console.log("Question saved successfully:", result.data);
       
       toast.success(`Question ${isNew ? 'created' : 'updated'} successfully`);
       navigate(`/edit-quiz/${quizId}`);

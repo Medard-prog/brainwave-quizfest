@@ -52,6 +52,7 @@ const EditQuiz = () => {
         setIsLoading(true);
         console.log("Fetching quiz data for ID:", quizId);
         
+        // Fetch quiz data
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
           .select('*')
@@ -79,6 +80,7 @@ const EditQuiz = () => {
         setShuffleQuestions(quizData.shuffle_questions || false);
         setIsPublic(quizData.is_public || false);
         
+        // Fetch questions using the correct approach
         console.log("Fetching questions for quiz ID:", quizId);
         const { data: questionsData, error: questionsError } = await supabase
           .from('questions')
@@ -89,11 +91,10 @@ const EditQuiz = () => {
         if (questionsError) {
           console.error("Error fetching questions:", questionsError);
           toast.error("Failed to load questions");
-          return;
+        } else {
+          console.log("Questions retrieved:", questionsData?.length || 0, questionsData);
+          setQuestions(questionsData || []);
         }
-        
-        console.log("Questions retrieved:", questionsData?.length || 0);
-        setQuestions(questionsData || []);
       } catch (error) {
         console.error("Error in fetchQuizData:", error);
         toast.error("An error occurred while loading quiz data");
