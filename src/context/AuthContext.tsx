@@ -50,31 +50,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Initial session check
     const getInitialSession = async () => {
-      try {
-        setIsLoading(true);
-        console.log("Getting initial session...");
-        
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          throw error;
-        }
-        
-        console.log("Initial session:", data.session ? "exists" : "null");
-        setSession(data.session);
-        
-        if (data.session?.user) {
-          const profile = await fetchUserProfile(data.session.user.id);
-          console.log("Initial profile:", profile ? "loaded" : "null");
-          setUser(profile);
-        }
-      } catch (error) {
-        console.error("Error getting initial session:", error);
-      } finally {
-        setIsLoading(false);
-        console.log("Initial auth loading completed");
-      }
-    };
+  try {
+    setIsLoading(true);
+    console.log("Getting initial session...");
+    
+    const { data, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      throw error;
+    }
+
+    console.log("Initial session:", data.session ? "exists" : "null");
+    setSession(data.session);
+
+    if (data.session?.user) {
+      const profile = await fetchUserProfile(data.session.user.id);
+      console.log("Initial profile:", profile ? "loaded" : "null");
+      setUser(profile);
+    }
+  } catch (error) {
+    console.error("Error getting initial session:", error);
+  } finally {
+    setIsLoading(false); // ✅ Ensure loading is false after session check
+    console.log("Initial auth loading completed");
+  }
+};
+
 
     getInitialSession();
     
@@ -82,21 +83,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         console.log("Auth state change:", event);
-        
         setSession(newSession);
-        
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+    
+        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
           if (newSession?.user) {
-            setIsLoading(true);
+            setIsLoading(true); 
             const profile = await fetchUserProfile(newSession.user.id);
             setUser(profile);
-            setIsLoading(false);
           }
-        } else if (event === 'SIGNED_OUT') {
+        } else if (event === "SIGNED_OUT") {
           setUser(null);
         }
+        
+        setIsLoading(false); // ✅ Make sure this runs after auth state changes
       }
     );
+    
 
     // Cleanup subscription
     return () => {
