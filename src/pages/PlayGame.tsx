@@ -31,7 +31,7 @@ const PlayGame = () => {
       // Only select the fields we need to avoid RLS recursion
       const { data: playersData, error: playersError } = await supabase
         .from('player_sessions')
-        .select('id, player_name, score, created_at')
+        .select('id, player_name, score, created_at, game_session_id, answers, updated_at')
         .eq('game_session_id', sessionId);
       
       if (playersError) {
@@ -41,8 +41,8 @@ const PlayGame = () => {
       
       if (playersData) {
         console.log("Players data:", playersData);
-        // Filter out the current player
-        const others = playersData.filter(player => player.id !== playerSession.id);
+        // Filter out the current player and cast to PlayerSession[]
+        const others = playersData.filter(player => player.id !== playerSession.id) as PlayerSession[];
         setOtherPlayers(others);
       }
     } catch (error) {
@@ -86,8 +86,8 @@ const PlayGame = () => {
       try {
         setIsLoading(true);
         
-        let playerSessionData = location.state?.playerSession;
-        let playerNameData = location.state?.playerName || "";
+        const playerSessionData = location.state?.playerSession;
+        const playerNameData = location.state?.playerName || "";
         
         console.log("Initial player session from state:", playerSessionData);
         console.log("Initial player name from state:", playerNameData);
