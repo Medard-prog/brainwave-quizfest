@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -20,6 +21,9 @@ const PlayGame = () => {
   const [gameStatus, setGameStatus] = useState<"waiting" | "active" | "completed">("waiting");
   const [otherPlayers, setOtherPlayers] = useState<PlayerSession[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [hasAnswered, setHasAnswered] = useState(false);
+  const [gamePin, setGamePin] = useState<string | null>(null);
   
   // Fetch the list of other players in this game session
   const fetchPlayers = async () => {
@@ -57,6 +61,21 @@ const PlayGame = () => {
     try {
       console.log("Fetching question at index:", questionIndex);
       
+      // Try to use the get_quiz_questions function first
+      try {
+        const { data: questionsData, error: functionError } = await supabase
+          .rpc('get_quiz_questions', { quiz_id: quiz.id });
+          
+        if (!functionError && questionsData && questionsData.length > questionIndex) {
+          console.log("Questions from RPC:", questionsData);
+          setCurrentQuestion(questionsData[questionIndex]);
+          return;
+        }
+      } catch (rpcError) {
+        console.error("Error using get_quiz_questions RPC:", rpcError);
+      }
+      
+      // Fallback to direct query
       const { data: questionsData, error: questionsError } = await supabase
         .from('questions')
         .select('*')
@@ -153,7 +172,7 @@ const PlayGame = () => {
           // Fetch the quiz info separately
           const { data: quizData, error: quizError } = await supabase
             .from('quizzes')
-            .select('id, title, description, creator_id')
+            .select('id, title, description, creator_id, game_pin')
             .eq('id', gameData.quiz_id)
             .single();
             
@@ -170,6 +189,11 @@ const PlayGame = () => {
             ...gameData,
             quiz: quizData
           };
+          
+          // Save the game pin
+          if (quizData.game_pin) {
+            setGamePin(quizData.game_pin);
+          }
         }
         
         // Clear the timeout since we received a response
@@ -199,7 +223,9 @@ const PlayGame = () => {
             
             // If there's a current question index change, fetch the question
             if (updatedSession.current_question_index !== gameSession?.current_question_index) {
-              fetchCurrentQuestion(updatedSession.current_question_index);
+              fetchCurrentQuestion(updatedSession.current_question_index || 0);
+              setHasAnswered(false);
+              setSelectedAnswer(null);
             }
           })
           .subscribe((status) => {
@@ -247,6 +273,61 @@ const PlayGame = () => {
     initializeGame();
   }, [sessionId, location, navigate]);
 
+  const submitAnswer = async (answer: string) => {
+    if (!playerSession || !currentQuestion || hasAnswered) return;
+    
+    setSelectedAnswer(answer);
+    setHasAnswered(true);
+    
+    try {
+      // Get current answers array
+      const { data: playerData, error: fetchError } = await supabase
+        .from('player_sessions')
+        .select('answers, score')
+        .eq('id', playerSession.id)
+        .single();
+        
+      if (fetchError) {
+        console.error("Error fetching player data:", fetchError);
+        return;
+      }
+      
+      // Calculate score
+      let newScore = playerData.score || 0;
+      if (answer === currentQuestion.correct_answer) {
+        newScore += currentQuestion.points || 10;
+      }
+      
+      // Update answers array
+      const newAnswers = [
+        ...(playerData.answers || []),
+        {
+          question_id: currentQuestion.id,
+          answer: answer,
+          is_correct: answer === currentQuestion.correct_answer,
+          points: answer === currentQuestion.correct_answer ? (currentQuestion.points || 10) : 0,
+          timestamp: new Date().toISOString()
+        }
+      ];
+      
+      // Update player session
+      const { error: updateError } = await supabase
+        .from('player_sessions')
+        .update({
+          answers: newAnswers,
+          score: newScore
+        })
+        .eq('id', playerSession.id);
+        
+      if (updateError) {
+        console.error("Error updating player answers:", updateError);
+      }
+      
+    } catch (error) {
+      console.error("Error in submitAnswer:", error);
+    }
+  };
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -261,11 +342,19 @@ const PlayGame = () => {
     <MainLayout>
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h1 className="text-2xl font-bold mb-2">
-            {gameStatus === "waiting" ? "Waiting for game to start" : 
-             gameStatus === "active" ? "Game in progress" :
-             "Game has ended"}
-          </h1>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold">
+              {gameStatus === "waiting" ? "Waiting for game to start" : 
+               gameStatus === "active" ? "Game in progress" :
+               "Game has ended"}
+            </h1>
+            {gamePin && (
+              <div className="bg-brainblitz-primary/10 px-4 py-2 rounded-lg">
+                <span className="text-sm text-brainblitz-dark-gray">Game PIN:</span>
+                <span className="ml-2 font-bold">{gamePin}</span>
+              </div>
+            )}
+          </div>
           
           {quiz && (
             <div className="mb-6">
@@ -277,15 +366,17 @@ const PlayGame = () => {
           )}
           
           <div className="border-t border-gray-200 pt-4 mt-4">
-            <h3 className="font-semibold mb-2">Players in the game:</h3>
-            <ul className="space-y-1">
-              <li className="font-medium text-green-600">{playerName} (You)</li>
+            <h3 className="font-semibold mb-2">Players in the game: {otherPlayers.length + 1}</h3>
+            <div className="flex flex-wrap gap-2 mb-6">
+              <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                {playerName} (You)
+              </span>
               {otherPlayers.map(player => (
-                <li key={player.id} className="text-brainblitz-dark-gray">
+                <span key={player.id} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
                   {player.player_name}
-                </li>
+                </span>
               ))}
-            </ul>
+            </div>
           </div>
           
           {gameStatus === "waiting" ? (
@@ -297,6 +388,75 @@ const PlayGame = () => {
                   The game will begin automatically when the host starts it
                 </p>
               </div>
+            </div>
+          ) : gameStatus === "active" && currentQuestion ? (
+            <div className="border-t border-gray-200 mt-6 pt-6">
+              <div className="mb-4">
+                <span className="bg-brainblitz-primary text-white px-3 py-1 rounded-full text-sm font-medium">
+                  Question {(gameSession?.current_question_index || 0) + 1}
+                </span>
+                <span className="ml-3 text-sm text-brainblitz-dark-gray">
+                  {currentQuestion.points} points
+                </span>
+              </div>
+              
+              <h3 className="text-xl font-bold mb-6">{currentQuestion.question_text}</h3>
+              
+              <div className="space-y-3">
+                {currentQuestion.question_type === 'multiple_choice' && 
+                  currentQuestion.options && 
+                  currentQuestion.options.map((option: any, index: number) => (
+                    <button
+                      key={index}
+                      onClick={() => !hasAnswered && submitAnswer(option.text)}
+                      disabled={hasAnswered}
+                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                        selectedAnswer === option.text 
+                          ? 'border-brainblitz-primary bg-brainblitz-primary/10' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      } ${hasAnswered ? 'cursor-default' : 'cursor-pointer'}`}
+                    >
+                      {option.text}
+                    </button>
+                  ))
+                }
+                
+                {(currentQuestion.correct_answer === "True" || currentQuestion.correct_answer === "False") && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => !hasAnswered && submitAnswer("True")}
+                      disabled={hasAnswered}
+                      className={`p-4 rounded-lg border-2 text-center ${
+                        selectedAnswer === "True" 
+                          ? 'border-brainblitz-primary bg-brainblitz-primary/10' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      } ${hasAnswered ? 'cursor-default' : 'cursor-pointer'}`}
+                    >
+                      True
+                    </button>
+                    <button
+                      onClick={() => !hasAnswered && submitAnswer("False")}
+                      disabled={hasAnswered}
+                      className={`p-4 rounded-lg border-2 text-center ${
+                        selectedAnswer === "False" 
+                          ? 'border-brainblitz-primary bg-brainblitz-primary/10' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      } ${hasAnswered ? 'cursor-default' : 'cursor-pointer'}`}
+                    >
+                      False
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {hasAnswered && (
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg text-center">
+                  <p className="font-medium">Your answer has been submitted</p>
+                  <p className="text-sm text-brainblitz-dark-gray mt-1">
+                    Waiting for other players and the next question...
+                  </p>
+                </div>
+              )}
             </div>
           ) : gameStatus === "completed" ? (
             <div className="border-t border-gray-200 mt-6 pt-6 text-center">

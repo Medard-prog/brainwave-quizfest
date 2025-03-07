@@ -246,13 +246,77 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_player_session: {
+        Args: {
+          p_game_session_id: string
+          p_player_name: string
+          p_player_id?: string
+        }
+        Returns: {
+          answers: Json | null
+          created_at: string | null
+          game_session_id: string
+          id: string
+          player_id: string | null
+          player_name: string
+          score: number | null
+          updated_at: string | null
+        }
+      }
       generate_unique_game_pin: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_active_sessions_for_quiz: {
+        Args: {
+          p_quiz_id: string
+        }
+        Returns: {
+          created_at: string | null
+          current_question_index: number | null
+          ended_at: string | null
+          host_id: string
+          id: string
+          quiz_id: string
+          started_at: string | null
+          status: string
+          updated_at: string | null
+        }[]
+      }
       get_auth_user_id: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_game_session_details: {
+        Args: {
+          session_id: string
+        }
+        Returns: {
+          created_at: string | null
+          current_question_index: number | null
+          ended_at: string | null
+          host_id: string
+          id: string
+          quiz_id: string
+          started_at: string | null
+          status: string
+          updated_at: string | null
+        }[]
+      }
+      get_player_sessions_for_game: {
+        Args: {
+          p_game_session_id: string
+        }
+        Returns: {
+          answers: Json | null
+          created_at: string | null
+          game_session_id: string
+          id: string
+          player_id: string | null
+          player_name: string
+          score: number | null
+          updated_at: string | null
+        }[]
       }
       get_quiz_question_count: {
         Args: {
@@ -287,6 +351,13 @@ export type Database = {
       user_is_game_host: {
         Args: {
           session_id: string
+        }
+        Returns: boolean
+      }
+      user_is_in_session: {
+        Args: {
+          p_session_id: string
+          p_user_id: string
         }
         Returns: boolean
       }
