@@ -22,15 +22,15 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
     let retryTimeout: NodeJS.Timeout;
     
     if (isLoading) {
-      // Show loading spinner after 300ms
+      // Show loading spinner after 500ms
       loadingTimeout = setTimeout(() => {
         setShowLoading(true);
-      }, 300);
+      }, 500);
       
-      // Show retry button after 10 seconds
+      // Show retry button after 8 seconds
       retryTimeout = setTimeout(() => {
         setShowRetry(true);
-      }, 10000);
+      }, 8000);
     } else {
       setShowLoading(false);
       setShowRetry(false);
@@ -70,7 +70,7 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
     );
   }
   
-  // If still loading but not past threshold, render nothing
+  // If still loading but not past threshold, render nothing to prevent flicker
   if (isLoading) {
     return null;
   }

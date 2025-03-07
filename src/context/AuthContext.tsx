@@ -26,6 +26,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authInitialized, setAuthInitialized] = useState(false);
+  const [initializationAttempts, setInitializationAttempts] = useState(0);
 
   // Refresh user profile data from the database
   const refreshUserProfile = useCallback(async () => {
@@ -65,8 +66,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Initial auth state and subscription setup
   useEffect(() => {
-    console.log("AuthProvider initialized");
+    console.log("AuthProvider initialized, attempt:", initializationAttempts);
+    
+    if (initializationAttempts > 3) {
+      console.warn("Too many initialization attempts, stopping");
+      setIsLoading(false);
+      setAuthInitialized(true);
+      return;
+    }
+    
     let timeoutId: NodeJS.Timeout;
+    let authStateSubscription: { data: { subscription: { unsubscribe: () => void } } };
     
     const setupAuth = async () => {
       try {
@@ -97,6 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearTimeout(timeoutId);
         setIsLoading(false);
         setAuthInitialized(true);
+        setInitializationAttempts(prev => prev + 1);
       } catch (error) {
         console.error("Auth initialization error:", error);
         clearTimeout(timeoutId);
@@ -104,24 +115,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         setIsLoading(false);
         setAuthInitialized(true);
+        setInitializationAttempts(prev => prev + 1);
       }
     };
 
     // Setup auth state monitoring
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    authStateSubscription = supabase.auth.onAuthStateChange(async (event, newSession) => {
       console.log("Auth state change:", event);
       
+      // Prevent reacting to auth state changes during initialization
+      if (!authInitialized && event !== 'INITIAL_SESSION') {
+        console.log("Ignoring auth state change during initialization");
+        return;
+      }
+      
       try {
+        if (event === 'SIGNED_OUT') {
+          // Handle sign out immediately
+          console.log("User signed out, clearing session and user");
+          setSession(null);
+          setUser(null);
+          return;
+        }
+        
+        // Update session state
         setSession(newSession);
         
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && newSession?.user) {
           setIsLoading(true);
-          if (newSession?.user) {
-            await refreshUserProfile();
-          }
+          await refreshUserProfile();
           setIsLoading(false);
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
+          
+          if (event === 'SIGNED_IN') {
+            // Only show toast for explicit sign in events
+            toast.success("Logged in successfully", {
+              description: "Welcome back!"
+            });
+          }
         }
       } catch (error) {
         console.error("Auth state change error:", error);
@@ -135,9 +165,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Cleanup
     return () => {
       clearTimeout(timeoutId);
-      subscription?.unsubscribe();
+      if (authStateSubscription?.data?.subscription) {
+        authStateSubscription.data.subscription.unsubscribe();
+      }
     };
-  }, [refreshUserProfile]);
+  }, [refreshUserProfile, authInitialized, initializationAttempts]);
 
   // Sign up a new user
   const signUp = async (
@@ -213,6 +245,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await refreshUserProfile();
       }
       
+      toast.success("Login successful", {
+        description: "Welcome back!"
+      });
+      
       setIsLoading(false);
       return { error: null };
     } catch (error: unknown) {
@@ -229,14 +265,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       setIsLoading(true);
+      
+      // Clear state first to prevent UI flashes
+      setUser(null);
+      
       const { error } = await supabase.auth.signOut();
       
       if (error) {
         throw error;
       }
       
-      // Clear auth state
-      setUser(null);
+      // Make sure session is cleared
       setSession(null);
       
       toast.success("Logged out successfully");

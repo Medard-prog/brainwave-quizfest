@@ -22,15 +22,15 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     let retryTimeout: NodeJS.Timeout;
     
     if (isLoading) {
-      // Show loading spinner after 300ms
+      // Show loading spinner after 500ms
       loadingTimeout = setTimeout(() => {
         setShowLoading(true);
-      }, 300);
+      }, 500);
       
-      // Show retry button after 10 seconds
+      // Show retry button after 8 seconds
       retryTimeout = setTimeout(() => {
         setShowRetry(true);
-      }, 10000);
+      }, 8000);
     } else {
       setShowLoading(false);
       setShowRetry(false);
@@ -70,14 +70,9 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
   
-  // If still loading but not past threshold, render nothing
-  if (isLoading) {
-    return null;
-  }
-
-  // Check for edge case: session exists but no user profile
-  if (session && !user) {
-    console.error("Session exists but no user profile found");
+  // Check if we have a session but no user profile
+  if (session && !user && !isLoading) {
+    console.error("Session exists but no user profile found - trying to recover");
     return (
       <div className="h-screen flex flex-col items-center justify-center p-4">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-md">
@@ -90,8 +85,11 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
               <RefreshCw size={16} />
               Retry
             </Button>
-            <Button asChild variant="outline">
-              <Navigate to="/logout" replace />
+            <Button 
+              variant="outline" 
+              onClick={() => window.location.href = "/logout"}
+            >
+              Logout
             </Button>
           </div>
         </div>
@@ -100,9 +98,14 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   // If not loading and no user, redirect to login
-  if (!user) {
+  if (!user && !isLoading) {
     console.log("No user found, redirecting to login");
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // If still loading but not past threshold, render nothing to prevent flicker
+  if (isLoading) {
+    return null;
   }
 
   // User is authenticated, render children
