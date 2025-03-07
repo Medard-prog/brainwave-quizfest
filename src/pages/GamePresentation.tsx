@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -25,101 +24,73 @@ const GamePresentation = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [gameEnded, setGameEnded] = useState(false);
 
+  const fetchGameData = async () => {
+    if (!sessionId || !user) return;
+    
+    try {
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('game_sessions')
+        .select(`
+          *,
+          quiz:quizzes(*)
+        `)
+        .eq('id', sessionId)
+        .single();
+      
+      if (sessionError) throw sessionError;
+      if (!sessionData) throw new Error("Game session not found");
+      
+      setGameSession(sessionData);
+      setQuiz(sessionData.quiz);
+      setCurrentQuestionIndex(sessionData.current_question_index || 0);
+      
+      try {
+        const { data: questionsData, error: functionError } = await supabase
+          .rpc('get_quiz_questions', { quiz_id: sessionData.quiz.id });
+          
+        if (!functionError && questionsData) {
+          console.log("Questions fetched via RPC:", questionsData);
+          setQuestions(questionsData);
+        } else {
+          throw functionError;
+        }
+      } catch (functionError) {
+        console.error("Error using get_quiz_questions RPC:", functionError);
+        
+        const { data: questionsData, error: questionsError } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('quiz_id', sessionData.quiz.id)
+          .order('order_num', { ascending: true });
+        
+        if (questionsError) throw questionsError;
+        setQuestions(questionsData || []);
+      }
+      
+      fetchPlayers();
+    } catch (error) {
+      console.error("Error fetching game data:", error);
+      toast.error("Failed to load game data");
+      navigate('/dashboard');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!sessionId || !user) return;
     
-    const fetchGameData = async () => {
-      try {
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('game_sessions')
-          .select(`
-            *,
-            quiz:quizzes(*)
-          `)
-          .eq('id', sessionId)
-          .single();
-        
-        if (sessionError) throw sessionError;
-        if (!sessionData) throw new Error("Game session not found");
-        
-        setGameSession(sessionData);
-        setQuiz(sessionData.quiz);
-        setCurrentQuestionIndex(sessionData.current_question_index || 0);
-        
-        // Try to use the get_quiz_questions function first
-        try {
-          const { data: questionsData, error: functionError } = await supabase
-            .rpc('get_quiz_questions', { quiz_id: sessionData.quiz.id });
-            
-          if (!functionError && questionsData) {
-            console.log("Questions fetched via RPC:", questionsData);
-            setQuestions(questionsData);
-          } else {
-            throw functionError;
-          }
-        } catch (functionError) {
-          console.error("Error using get_quiz_questions RPC:", functionError);
-          
-          // Fallback to direct query
-          const { data: questionsData, error: questionsError } = await supabase
-            .from('questions')
-            .select('*')
-            .eq('quiz_id', sessionData.quiz.id)
-            .order('order_num', { ascending: true });
-          
-          if (questionsError) throw questionsError;
-          setQuestions(questionsData || []);
-        }
-        
-        fetchPlayers();
-      } catch (error) {
-        console.error("Error fetching game data:", error);
-        toast.error("Failed to load game data");
-        navigate('/dashboard');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     fetchGameData();
     
-    const subscription = supabase
-      .channel(`game_session:${sessionId}`)
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'game_sessions',
-        filter: `id=eq.${sessionId}`
-      }, (payload) => {
-        console.log("Game session updated:", payload);
-        fetchGameData();
-      })
-      .subscribe();
+    const pollInterval = setInterval(fetchGameData, 1000);
     
-    const playerSubscription = supabase
-      .channel(`player_sessions:${sessionId}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'player_sessions',
-        filter: `game_session_id=eq.${sessionId}`
-      }, (payload) => {
-        console.log("Player update:", payload);
-        fetchPlayers();
-      })
-      .subscribe();
-    
-    return () => {
-      supabase.removeChannel(subscription);
-      supabase.removeChannel(playerSubscription);
-    };
+    return () => clearInterval(pollInterval);
   }, [sessionId, user, navigate]);
 
   const fetchPlayers = async () => {
     if (!sessionId) return;
     
     try {
-      // Try to use the RPC first
       try {
         const { data: playersData, error: rpcError } = await supabase
           .rpc('get_player_sessions_for_game', { p_game_session_id: sessionId });
@@ -133,7 +104,6 @@ const GamePresentation = () => {
         console.error("RPC error fetching players:", rpcError);
       }
       
-      // Fallback to direct query
       const { data, error } = await supabase
         .from('player_sessions')
         .select('*')
@@ -264,7 +234,6 @@ const GamePresentation = () => {
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  // If we don't have a current question but questions array is not empty
   if (!currentQuestion && questions.length > 0) {
     console.error("Current question is undefined but questions exist", { currentQuestionIndex, questionsLength: questions.length });
     return (
@@ -300,7 +269,6 @@ const GamePresentation = () => {
       </header>
       
       <main className="flex-1 overflow-hidden flex flex-col relative">
-        {/* Player counter */}
         <div className="absolute top-4 right-4 z-10 bg-white rounded-full px-3 py-1 shadow-md flex items-center">
           <Users size={16} className="mr-2 text-brainblitz-primary" />
           <span className="font-medium">{players.length}</span>

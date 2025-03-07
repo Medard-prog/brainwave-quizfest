@@ -24,7 +24,6 @@ const PlayGame = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [hasAnswered, setHasAnswered] = useState(false);
   const [gamePin, setGamePin] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
   
   // Fetch the list of other players in this game session
   const fetchPlayers = async () => {
@@ -33,10 +32,28 @@ const PlayGame = () => {
     try {
       console.log("Fetching players for session:", sessionId);
       
-      // Only select the fields we need to avoid RLS recursion
+      // Try using the RPC function first for more reliable data
+      try {
+        const { data: playersData, error: rpcError } = await supabase
+          .rpc('get_player_sessions_for_game', { p_game_session_id: sessionId });
+          
+        if (!rpcError && playersData) {
+          console.log("Players fetched via RPC:", playersData);
+          // Filter out the current player
+          const others = playersData.filter(player => player.id !== playerSession.id) as PlayerSession[];
+          setOtherPlayers(others);
+          return;
+        } else if (rpcError) {
+          console.error("RPC error fetching players:", rpcError);
+        }
+      } catch (rpcError) {
+        console.error("RPC method failed:", rpcError);
+      }
+      
+      // Fallback to direct query if RPC fails
       const { data: playersData, error: playersError } = await supabase
         .from('player_sessions')
-        .select('id, player_name, score, created_at, game_session_id, answers, updated_at')
+        .select('id, player_name, score, created_at, game_session_id, answers, updated_at, player_id')
         .eq('game_session_id', sessionId);
       
       if (playersError) {
@@ -104,24 +121,57 @@ const PlayGame = () => {
     }
   };
 
-  // Periodic refresh for players and game state
+  // Set up recurring poll for game data every second
   useEffect(() => {
-    const refreshInterval = setInterval(() => {
-      setRefreshKey(prevKey => prevKey + 1);
-    }, 2000); // Refresh every 2 seconds for more responsiveness
+    if (!sessionId) return;
     
-    return () => clearInterval(refreshInterval);
-  }, []);
-
-  // Trigger refresh of data when refreshKey changes
-  useEffect(() => {
-    if (gameSession) {
-      fetchPlayers();
-      if (gameSession.status === 'active' && gameSession.current_question_index !== null) {
-        fetchCurrentQuestion(gameSession.current_question_index);
+    // Function to fetch all game data
+    const pollGameData = async () => {
+      try {
+        // 1. Fetch game session
+        const { data: gameData, error: gameError } = await supabase
+          .from('game_sessions')
+          .select('id, quiz_id, host_id, status, current_question_index, started_at, ended_at, created_at, updated_at')
+          .eq('id', sessionId)
+          .single();
+        
+        if (gameError) {
+          console.error("Error polling game session:", gameError);
+          return;
+        }
+        
+        if (gameData) {
+          // Update game session state
+          setGameSession(gameData as GameSession);
+          setGameStatus(gameData.status);
+          
+          // If question index changed, fetch the new question
+          if (gameSession?.current_question_index !== gameData.current_question_index) {
+            console.log("Question index changed to:", gameData.current_question_index);
+            if (quiz) {
+              fetchCurrentQuestion(gameData.current_question_index || 0);
+            }
+          }
+        }
+        
+        // 2. Fetch players
+        fetchPlayers();
+        
+        // 3. If active game and we have a current question index, make sure we have the question
+        if (gameData?.status === 'active' && gameData?.current_question_index !== null && quiz) {
+          fetchCurrentQuestion(gameData.current_question_index);
+        }
+      } catch (error) {
+        console.error("Error in pollGameData:", error);
       }
-    }
-  }, [refreshKey, gameSession]);
+    };
+    
+    // Start polling
+    const pollInterval = setInterval(pollGameData, 1000);
+    
+    // Clean up interval on unmount
+    return () => clearInterval(pollInterval);
+  }, [sessionId, playerSession, quiz, gameSession?.current_question_index]);
 
   // Check if the player has already answered the current question
   useEffect(() => {
@@ -197,7 +247,7 @@ const PlayGame = () => {
         // Fetch the quiz info separately
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
-          .select('id, title, description, creator_id, game_pin, is_public, shuffle_questions, created_at, updated_at')
+          .select('id, title, description, creator_id, game_pin, is_public, shuffle_questions, created_at, updated_at, time_limit')
           .eq('id', gameData.quiz_id)
           .single();
           
@@ -260,7 +310,7 @@ const PlayGame = () => {
             setGameSession(current => ({
               ...current,
               ...updatedSession
-            }));
+            } as GameSession));
             
             // If there's a current question index change, fetch the question
             if (updatedSession.current_question_index !== gameSession?.current_question_index) {
