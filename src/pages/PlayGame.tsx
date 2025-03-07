@@ -24,6 +24,7 @@ const PlayGame = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [hasAnswered, setHasAnswered] = useState(false);
   const [gamePin, setGamePin] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   
   // Fetch the list of other players in this game session
   const fetchPlayers = async () => {
@@ -97,6 +98,25 @@ const PlayGame = () => {
       console.error("Error in fetchCurrentQuestion:", error);
     }
   };
+
+  // Periodic refresh for players and game state
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      setRefreshKey(prevKey => prevKey + 1);
+    }, 3000); // Refresh every 3 seconds
+    
+    return () => clearInterval(refreshInterval);
+  }, []);
+
+  // Trigger refresh of data when refreshKey changes
+  useEffect(() => {
+    if (gameSession) {
+      fetchPlayers();
+      if (gameSession.status === 'active' && gameSession.current_question_index !== null) {
+        fetchCurrentQuestion(gameSession.current_question_index);
+      }
+    }
+  }, [refreshKey, gameSession]);
 
   useEffect(() => {
     if (!sessionId) return;

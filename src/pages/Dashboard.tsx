@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Search, Settings } from "lucide-react";
@@ -13,6 +14,7 @@ const Dashboard = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchQuizzes = async () => {
@@ -65,7 +67,44 @@ const Dashboard = () => {
     };
     
     fetchQuizzes();
-  }, [user]);
+    
+    // Set up real-time subscription for quizzes and questions
+    const quizzesChannel = supabase
+      .channel('quizzes_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'quizzes',
+        filter: user ? `creator_id=eq.${user.id}` : undefined
+      }, () => {
+        console.log("Quiz changes detected, refreshing data");
+        fetchQuizzes();
+      })
+      .subscribe();
+      
+    const questionsChannel = supabase
+      .channel('questions_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'questions'
+      }, () => {
+        console.log("Question changes detected, refreshing data");
+        fetchQuizzes();
+      })
+      .subscribe();
+    
+    // Periodic refresh every 3 seconds as a fallback
+    const refreshInterval = setInterval(() => {
+      setRefreshKey(prevKey => prevKey + 1);
+    }, 3000);
+    
+    return () => {
+      supabase.removeChannel(quizzesChannel);
+      supabase.removeChannel(questionsChannel);
+      clearInterval(refreshInterval);
+    };
+  }, [user, refreshKey]);
 
   // Filter quizzes based on search query
   const filteredQuizzes = quizzes.filter(quiz => 
