@@ -283,8 +283,11 @@ const PlayGame = () => {
           }, (payload) => {
             console.log("Player update:", payload);
             
-            // If it's the current player, update player session
-            if (payload.new && payload.new.id === playerSessionData.id) {
+            // Fix: Check if payload.new exists and has an id property before comparing
+            if (payload.new && 
+                typeof payload.new === 'object' && 
+                'id' in payload.new && 
+                payload.new.id === playerSessionData.id) {
               console.log("Updating current player session with:", payload.new);
               setPlayerSession(payload.new as PlayerSession);
             }
