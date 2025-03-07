@@ -197,7 +197,7 @@ const PlayGame = () => {
         // Fetch the quiz info separately
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
-          .select('id, title, description, creator_id, game_pin')
+          .select('id, title, description, creator_id, game_pin, is_public, shuffle_questions, created_at, updated_at')
           .eq('id', gameData.quiz_id)
           .single();
           
@@ -225,7 +225,7 @@ const PlayGame = () => {
         
         console.log("Game session loaded:", sessionData);
         setGameSession(sessionData);
-        setQuiz(quizData);
+        setQuiz(quizData); // This is now a complete Quiz object with all required properties
         setGameStatus(sessionData.status);
         
         // Immediately fetch player session details to get latest answers
@@ -236,7 +236,9 @@ const PlayGame = () => {
           .single();
           
         if (!playerError && updatedPlayerData) {
-          setPlayerSession(updatedPlayerData);
+          console.log("Updated player session data:", updatedPlayerData);
+          // Ensure we're setting a complete PlayerSession object
+          setPlayerSession(updatedPlayerData as PlayerSession);
         }
         
         // Set up realtime subscription for game updates
@@ -282,8 +284,9 @@ const PlayGame = () => {
             console.log("Player update:", payload);
             
             // If it's the current player, update player session
-            if (payload.new.id === playerSessionData.id) {
-              setPlayerSession(payload.new);
+            if (payload.new && payload.new.id === playerSessionData.id) {
+              console.log("Updating current player session with:", payload.new);
+              setPlayerSession(payload.new as PlayerSession);
             }
             
             // Refresh all players
@@ -295,12 +298,12 @@ const PlayGame = () => {
         
         // Set up subscription for question changes
         const questionsChannel = supabase
-          .channel(`questions_${quiz.id}`)
+          .channel(`questions_${quizData.id}`)
           .on('postgres_changes', {
             event: '*',
             schema: 'public',
             table: 'questions',
-            filter: `quiz_id=eq.${quiz.id}`
+            filter: `quiz_id=eq.${quizData.id}`
           }, () => {
             console.log("Questions changed, refreshing current question");
             if (gameSession?.current_question_index !== null && gameSession?.current_question_index !== undefined) {
