@@ -39,15 +39,34 @@ const AIQuizAssistant = ({ onGenerateQuiz, onGenerateQuestions, onClose }: AIQui
       }
       
       if (data?.questions && Array.isArray(data.questions)) {
+        // Fix the correct answer issue - make sure correct_answer matches one of the options exactly
+        const processedQuestions = data.questions.map(question => {
+          // Find the option that should be correct (assuming AI returns correct object in options)
+          let correctOption = question.options.find(opt => 
+            opt.text.toLowerCase() === question.correct_answer.toLowerCase()
+          );
+          
+          // If not found, just use the first option as correct
+          if (!correctOption && question.options.length > 0) {
+            correctOption = question.options[0];
+          }
+          
+          // Return fixed question with correct_answer matching exactly one option's text
+          return {
+            ...question,
+            correct_answer: correctOption ? correctOption.text : question.correct_answer
+          };
+        });
+        
         toast.success("Quiz generated successfully!");
         
         // Call both callback props if they exist
         if (onGenerateQuiz) {
-          onGenerateQuiz(data.questions);
+          onGenerateQuiz(processedQuestions);
         }
         
         if (onGenerateQuestions) {
-          onGenerateQuestions(data.questions);
+          onGenerateQuestions(processedQuestions);
         }
         
         // Close the modal after generation if onClose exists

@@ -23,31 +23,39 @@ const Dashboard = () => {
         console.log("Fetching quizzes for user:", user.id);
         setIsLoading(true);
         
-        const { data, error } = await supabase
+        // First, fetch the basic quiz data without the nested counts
+        const { data: quizzesData, error: quizzesError } = await supabase
           .from('quizzes')
-          .select(`
-            *,
-            questions:questions(count)
-          `)
+          .select('*')
           .eq('creator_id', user.id)
           .order('created_at', { ascending: false });
         
-        if (error) {
-          console.error("Error fetching quizzes:", error);
+        if (quizzesError) {
+          console.error("Error fetching quizzes:", quizzesError);
           toast.error("Failed to load quizzes");
-          throw error;
+          throw quizzesError;
         }
         
-        console.log("Quizzes fetched:", data);
-        
-        // Process data to format question_count
-        const formattedData = data.map((quiz) => ({
-          ...quiz,
-          question_count: quiz.questions?.[0]?.count || 0,
-          questions: undefined // Remove the questions object
+        // For each quiz, get question count separately
+        const enhancedQuizzes = await Promise.all(quizzesData.map(async (quiz) => {
+          // Get question count
+          const { count: questionCount, error: questionError } = await supabase
+            .from('questions')
+            .select('*', { count: 'exact', head: true })
+            .eq('quiz_id', quiz.id);
+            
+          if (questionError) {
+            console.error(`Error fetching question count for quiz ${quiz.id}:`, questionError);
+          }
+          
+          return {
+            ...quiz,
+            question_count: questionCount || 0
+          };
         }));
         
-        setQuizzes(formattedData);
+        console.log("Quizzes fetched:", enhancedQuizzes);
+        setQuizzes(enhancedQuizzes);
       } catch (error) {
         console.error("Error in fetchQuizzes:", error);
       } finally {

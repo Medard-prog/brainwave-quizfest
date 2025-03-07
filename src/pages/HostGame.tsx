@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Copy, CheckCircle, QrCode, Users, Timer, X } from "lucide-react";
+import { Copy, CheckCircle, QrCode, Users, Timer, X, ArrowLeft } from "lucide-react";
 import { Quiz, Question } from "@/lib/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
@@ -296,7 +296,7 @@ const HostGame = () => {
           <h1 className="text-2xl font-bold mb-4">Quiz Not Found</h1>
           <p className="mb-6">The quiz you're looking for doesn't exist or you don't have access to it.</p>
           <Button asChild>
-            <a href="/dashboard">Back to Dashboard</a>
+            <a href="/my-quizzes">Back to My Quizzes</a>
           </Button>
         </div>
       </DashboardLayout>
@@ -307,9 +307,20 @@ const HostGame = () => {
     <DashboardLayout>
       <div className="px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-5xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">{quiz.title}</h1>
-            <p className="text-brainblitz-dark-gray">{quiz.description || "No description provided"}</p>
+          <div className="flex items-center mb-6">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="mr-2" 
+              onClick={() => navigate('/my-quizzes')}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">{quiz.title}</h1>
+              <p className="text-brainblitz-dark-gray">{quiz.description || "No description provided"}</p>
+            </div>
           </div>
           
           {!gameSession ? (
