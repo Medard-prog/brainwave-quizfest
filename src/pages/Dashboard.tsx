@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Search, Settings } from "lucide-react";
@@ -36,16 +35,18 @@ const Dashboard = () => {
           throw quizzesError;
         }
         
-        // For each quiz, get question count separately
+        // For each quiz, get question count using RPC function
         const enhancedQuizzes = await Promise.all(quizzesData.map(async (quiz) => {
-          // Get question count
-          const { count: questionCount, error: questionError } = await supabase
-            .from('questions')
-            .select('*', { count: 'exact', head: true })
-            .eq('quiz_id', quiz.id);
+          // Get question count using the RPC function
+          const { data: questionCount, error: questionError } = await supabase
+            .rpc('get_quiz_question_count', { quiz_id: quiz.id });
             
           if (questionError) {
             console.error(`Error fetching question count for quiz ${quiz.id}:`, questionError);
+            return {
+              ...quiz,
+              question_count: 0
+            };
           }
           
           return {
@@ -54,7 +55,7 @@ const Dashboard = () => {
           };
         }));
         
-        console.log("Quizzes fetched:", enhancedQuizzes);
+        console.log("Quizzes fetched with counts:", enhancedQuizzes);
         setQuizzes(enhancedQuizzes);
       } catch (error) {
         console.error("Error in fetchQuizzes:", error);

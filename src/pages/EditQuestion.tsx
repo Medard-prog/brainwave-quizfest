@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -162,14 +161,22 @@ const EditQuestion = () => {
       return;
     }
     
-    if (options.some(o => !o.text.trim())) {
-      toast.error("All options must have text");
-      return;
-    }
-    
-    if (!correctAnswer) {
-      toast.error("Please select a correct answer");
-      return;
+    // For multiple choice questions, validate options and correct answer
+    if (questionType === 'multiple_choice') {
+      if (options.length < 2) {
+        toast.error("Multiple choice questions must have at least 2 options");
+        return;
+      }
+      
+      if (options.some(o => !o.text.trim())) {
+        toast.error("All options must have text");
+        return;
+      }
+      
+      if (!correctAnswer) {
+        toast.error("Please select a correct answer");
+        return;
+      }
     }
     
     try {
@@ -180,16 +187,15 @@ const EditQuestion = () => {
       // Get the current order number if creating a new question
       let orderNum = 1;
       if (isNew) {
-        const { count, error } = await supabase
-          .from('questions')
-          .select('*', { count: 'exact', head: true })
-          .eq('quiz_id', quizId);
+        const { data: count, error } = await supabase
+          .rpc('get_quiz_question_count', { quiz_id: quizId });
         
         if (!error) {
           orderNum = (count || 0) + 1;
         }
       }
       
+      // Prepare and clean the question data
       const questionData = {
         quiz_id: quizId,
         question_text: questionText,
@@ -224,7 +230,7 @@ const EditQuestion = () => {
       
       if (result.error) {
         console.error("Error saving question:", result.error);
-        toast.error("Failed to save question");
+        toast.error(`Failed to save question: ${result.error.message}`);
         return;
       }
       

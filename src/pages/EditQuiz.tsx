@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -62,13 +61,13 @@ const EditQuiz = () => {
         if (quizError) {
           console.error("Error fetching quiz:", quizError);
           toast.error("Failed to load quiz");
-          navigate('/my-quizzes');
+          navigate('/dashboard');
           return;
         }
         
         if (quizData.creator_id !== user.id) {
           toast.error("You don't have permission to edit this quiz");
-          navigate('/my-quizzes');
+          navigate('/dashboard');
           return;
         }
         
@@ -80,7 +79,7 @@ const EditQuiz = () => {
         setShuffleQuestions(quizData.shuffle_questions || false);
         setIsPublic(quizData.is_public || false);
         
-        // Use the secure function to get questions
+        // Use the RPC function to get the question count
         const { data: questionCountData, error: questionCountError } = await supabase
           .rpc('get_quiz_question_count', { quiz_id: quizId });
         
@@ -90,12 +89,9 @@ const EditQuiz = () => {
           console.log("Question count:", questionCountData);
         }
         
-        // Fetch questions
+        // Fetch questions using the RPC function
         const { data: questionsData, error: questionsError } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('quiz_id', quizId)
-          .order('order_num', { ascending: true });
+          .rpc('get_quiz_questions', { quiz_id: quizId });
         
         if (questionsError) {
           console.error("Error fetching questions:", questionsError);

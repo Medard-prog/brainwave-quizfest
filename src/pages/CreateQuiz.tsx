@@ -257,8 +257,15 @@ const CreateQuiz = () => {
     
     try {
       // Generate a game pin
-      const { data: pinData } = await supabase.rpc('generate_unique_game_pin');
+      const { data: pinData, error: pinError } = await supabase.rpc('generate_unique_game_pin');
+      
+      if (pinError) {
+        console.error("Error generating game pin:", pinError);
+        throw new Error("Failed to generate game pin");
+      }
+      
       const gamePin = pinData;
+      console.log("Generated game pin:", gamePin);
       
       // Create quiz
       const { data: quizData, error: quizError } = await supabase
@@ -275,7 +282,12 @@ const CreateQuiz = () => {
         .select()
         .single();
       
-      if (quizError) throw quizError;
+      if (quizError) {
+        console.error("Error creating quiz:", quizError);
+        throw quizError;
+      }
+      
+      console.log("Quiz created:", quizData);
       
       // Prepare questions data
       const questionsData = questions.map((q, index) => ({
@@ -289,22 +301,31 @@ const CreateQuiz = () => {
         order_num: index + 1
       }));
       
-      // Insert questions
-      const { error: questionsError } = await supabase
-        .from('questions')
-        .insert(questionsData);
+      console.log("Inserting questions:", questionsData);
       
-      if (questionsError) throw questionsError;
+      // Insert questions
+      const { data: insertedQuestions, error: questionsError } = await supabase
+        .from('questions')
+        .insert(questionsData)
+        .select();
+      
+      if (questionsError) {
+        console.error("Error creating questions:", questionsError);
+        throw questionsError;
+      }
+      
+      console.log("Questions created:", insertedQuestions);
       
       toast({
         title: "Quiz created!",
-        description: "Your quiz has been successfully created",
+        description: `Your quiz with ${insertedQuestions.length} questions has been successfully created`,
       });
       
       // Navigate to the quiz list
       navigate('/dashboard');
       
     } catch (error: any) {
+      console.error("Error saving quiz:", error);
       toast({
         title: "Error saving quiz",
         description: error.message || "Something went wrong. Please try again.",
