@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Settings, Play, Edit, ExternalLink, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Search, Edit, Play, Trash2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Spinner } from "@/components/ui/spinner";
 
 const MyQuizzesPage = () => {
   const { user } = useAuth();
@@ -47,36 +48,47 @@ const MyQuizzesPage = () => {
           throw quizzesError;
         }
         
-        // For each quiz, get question count separately
+        console.log("Basic quiz data fetched:", quizzesData?.length || 0);
+        
+        // For each quiz, get question count and game count separately
         const enhancedQuizzes = await Promise.all(quizzesData.map(async (quiz) => {
-          // Get question count
-          const { count: questionCount, error: questionError } = await supabase
-            .from('questions')
-            .select('*', { count: 'exact', head: true })
-            .eq('quiz_id', quiz.id);
+          try {
+            // Get question count
+            const { count: questionCount, error: questionError } = await supabase
+              .from('questions')
+              .select('*', { count: 'exact', head: true })
+              .eq('quiz_id', quiz.id);
+              
+            if (questionError) {
+              console.error(`Error fetching question count for quiz ${quiz.id}:`, questionError);
+            }
             
-          if (questionError) {
-            console.error(`Error fetching question count for quiz ${quiz.id}:`, questionError);
-          }
-          
-          // Get game session count
-          const { count: gameCount, error: gameError } = await supabase
-            .from('game_sessions')
-            .select('*', { count: 'exact', head: true })
-            .eq('quiz_id', quiz.id);
+            // Get game session count
+            const { count: gameCount, error: gameError } = await supabase
+              .from('game_sessions')
+              .select('*', { count: 'exact', head: true })
+              .eq('quiz_id', quiz.id);
+              
+            if (gameError) {
+              console.error(`Error fetching game count for quiz ${quiz.id}:`, gameError);
+            }
             
-          if (gameError) {
-            console.error(`Error fetching game count for quiz ${quiz.id}:`, gameError);
+            return {
+              ...quiz,
+              question_count: questionCount || 0,
+              game_count: gameCount || 0
+            };
+          } catch (err) {
+            console.error(`Error enhancing quiz ${quiz.id}:`, err);
+            return {
+              ...quiz,
+              question_count: 0,
+              game_count: 0
+            };
           }
-          
-          return {
-            ...quiz,
-            question_count: questionCount || 0,
-            game_count: gameCount || 0
-          };
         }));
         
-        console.log("Quizzes fetched:", enhancedQuizzes);
+        console.log("Enhanced quizzes:", enhancedQuizzes);
         setQuizzes(enhancedQuizzes);
       } catch (error) {
         console.error("Error in fetchQuizzes:", error);
@@ -133,6 +145,16 @@ const MyQuizzesPage = () => {
       setIsDeleting(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex justify-center items-center py-20">
+          <Spinner size="lg" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

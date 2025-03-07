@@ -50,6 +50,7 @@ const EditQuiz = () => {
     const fetchQuizData = async () => {
       try {
         setIsLoading(true);
+        console.log("Fetching quiz data for ID:", quizId);
         
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
@@ -70,6 +71,7 @@ const EditQuiz = () => {
           return;
         }
         
+        console.log("Quiz data retrieved:", quizData);
         setQuiz(quizData);
         setTitle(quizData.title);
         setDescription(quizData.description || "");
@@ -77,6 +79,7 @@ const EditQuiz = () => {
         setShuffleQuestions(quizData.shuffle_questions || false);
         setIsPublic(quizData.is_public || false);
         
+        console.log("Fetching questions for quiz ID:", quizId);
         const { data: questionsData, error: questionsError } = await supabase
           .from('questions')
           .select('*')
@@ -89,6 +92,7 @@ const EditQuiz = () => {
           return;
         }
         
+        console.log("Questions retrieved:", questionsData?.length || 0);
         setQuestions(questionsData || []);
       } catch (error) {
         console.error("Error in fetchQuizData:", error);

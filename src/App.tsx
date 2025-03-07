@@ -1,5 +1,5 @@
 
-import { Route, Routes } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";

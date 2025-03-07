@@ -40,41 +40,40 @@ const HostGame = () => {
     
     const fetchQuizAndQuestions = async () => {
       try {
+        console.log("Fetching quiz data for ID:", quizId);
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
           .select('*')
           .eq('id', quizId)
           .single();
         
-        if (quizError) throw quizError;
-        if (!quizData) throw new Error("Quiz not found");
+        if (quizError) {
+          console.error("Error fetching quiz:", quizError);
+          throw quizError;
+        }
         
+        if (!quizData) {
+          console.error("Quiz not found");
+          throw new Error("Quiz not found");
+        }
+        
+        console.log("Quiz data retrieved:", quizData);
         setQuiz(quizData);
         
+        console.log("Fetching questions for quiz ID:", quizId);
         const { data: questionsData, error: questionsError } = await supabase
           .from('questions')
           .select('*')
           .eq('quiz_id', quizId)
           .order('order_num', { ascending: true });
         
-        if (questionsError) throw questionsError;
-        setQuestions(questionsData || []);
-        
-        if (!quizData.game_pin) {
-          const { data: pinData } = await supabase
-            .rpc('generate_unique_game_pin');
-          
-          if (pinData) {
-            const { error: updateError } = await supabase
-              .from('quizzes')
-              .update({ game_pin: pinData })
-              .eq('id', quizId);
-            
-            if (!updateError) {
-              setQuiz({ ...quizData, game_pin: pinData });
-            }
-          }
+        if (questionsError) {
+          console.error("Error fetching questions:", questionsError);
+          throw questionsError;
         }
+        
+        console.log("Questions retrieved:", questionsData?.length || 0);
+        setQuestions(questionsData || []);
       } catch (error) {
         console.error("Error fetching quiz data:", error);
         toast.error("Failed to load quiz data");
@@ -141,6 +140,36 @@ const HostGame = () => {
       setIsCreatingSession(true);
       console.log("Creating new game session for quiz:", quizId);
       
+      // Generate a game pin if one doesn't exist yet
+      let gamePin = quiz.game_pin;
+      
+      if (!gamePin) {
+        console.log("Generating new game pin");
+        const { data: pinData, error: pinError } = await supabase
+          .rpc('generate_unique_game_pin');
+        
+        if (pinError) {
+          console.error("Error generating game pin:", pinError);
+          throw pinError;
+        }
+        
+        gamePin = pinData;
+        
+        // Update the quiz with the new game pin
+        const { error: updateError } = await supabase
+          .from('quizzes')
+          .update({ game_pin: gamePin })
+          .eq('id', quizId);
+        
+        if (updateError) {
+          console.error("Error updating quiz with game pin:", updateError);
+          throw updateError;
+        }
+        
+        // Update local state
+        setQuiz({ ...quiz, game_pin: gamePin });
+      }
+      
       const { data, error } = await supabase
         .from('game_sessions')
         .insert({
@@ -204,6 +233,7 @@ const HostGame = () => {
         .eq('game_session_id', sessionId);
       
       if (error) throw error;
+      console.log("Players fetched:", data?.length || 0);
       setPlayers(data || []);
     } catch (error) {
       console.error("Error fetching players:", error);
@@ -328,19 +358,22 @@ const HostGame = () => {
               <h2 className="text-xl font-bold mb-6">Ready to start your quiz?</h2>
               <div className="flex flex-col items-center">
                 <div className="mb-6">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <div className="text-lg font-bold">Game PIN: {quiz.game_pin || "Not set"}</div>
-                    <button 
-                      onClick={copyGamePin} 
-                      className="text-brainblitz-primary hover:text-brainblitz-primary/80"
-                      disabled={!quiz.game_pin}
-                    >
-                      {copied ? <CheckCircle size={18} /> : <Copy size={18} />}
-                    </button>
-                  </div>
-                  <p className="text-sm text-brainblitz-dark-gray mb-4">
-                    Players can join at <span className="font-medium">brainblitz.app/join</span> using this PIN
-                  </p>
+                  {quiz.game_pin && (
+                    <>
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <div className="text-lg font-bold">Game PIN: {quiz.game_pin}</div>
+                        <button 
+                          onClick={copyGamePin} 
+                          className="text-brainblitz-primary hover:text-brainblitz-primary/80"
+                        >
+                          {copied ? <CheckCircle size={18} /> : <Copy size={18} />}
+                        </button>
+                      </div>
+                      <p className="text-sm text-brainblitz-dark-gray mb-4">
+                        Players can join at <span className="font-medium">brainblitz.app/join</span> using this PIN
+                      </p>
+                    </>
+                  )}
                 </div>
                 
                 <div className="space-y-2 mt-4">
