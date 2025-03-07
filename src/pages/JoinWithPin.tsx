@@ -198,7 +198,36 @@ const JoinWithPin = () => {
     try {
       setIsLoading(true);
       
-      // Create a player session
+      // Method 1: Try to use the custom RPC function to create player session
+      try {
+        const { data: playerData, error: rpcError } = await supabase
+          .rpc('create_player_session', {
+            p_game_session_id: gameSession.id,
+            p_player_name: playerName.trim(),
+            p_player_id: null // Anonymous player
+          });
+          
+        if (!rpcError && playerData) {
+          console.log("Player session created via RPC:", playerData);
+          
+          // Navigate to game page
+          navigate(`/play/${gameSession.id}`, {
+            state: {
+              playerSession: playerData,
+              playerName: playerName.trim()
+            }
+          });
+          return;
+        } else if (rpcError) {
+          console.error("Error creating player session via RPC:", rpcError);
+          // Continue to fallback method if RPC fails
+        }
+      } catch (rpcError) {
+        console.error("RPC create_player_session failed:", rpcError);
+        // Continue to fallback method
+      }
+      
+      // Method 2: Fallback to direct insert with minimal fields
       const { data: playerData, error: playerError } = await supabase
         .from('player_sessions')
         .insert({
@@ -207,7 +236,7 @@ const JoinWithPin = () => {
           score: 0,
           answers: []
         })
-        .select()
+        .select('id, player_name, game_session_id')
         .single();
       
       if (playerError) {
