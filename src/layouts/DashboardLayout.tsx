@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import { cn } from "@/lib/utils";
 
@@ -12,9 +12,15 @@ const DashboardLayout = ({
   children, 
   className = "",
 }: DashboardLayoutProps) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  const toggleSidebar = () => {
+    setSidebarOpen(prev => !prev);
+  };
+
   return (
     <div className="flex min-h-screen bg-brainblitz-background">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
       <main 
         className={cn(
           "flex-1", 
