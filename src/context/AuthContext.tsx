@@ -1,6 +1,5 @@
-
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { Session, User as SupabaseUser } from "@supabase/supabase-js";
+import { Session, User as SupabaseUser, AuthError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { User } from "@/lib/types";
 import { toast } from "sonner";
@@ -9,11 +8,11 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
-  signUp: (email: string, password: string, metadata?: { first_name?: string; last_name?: string; username?: string }) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, metadata?: { first_name?: string; last_name?: string; username?: string }) => Promise<{ error: unknown | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: unknown | null }>;
   signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ error: any }>;
-  updatePassword: (password: string) => Promise<{ error: any }>;
+  resetPassword: (email: string) => Promise<{ error: unknown | null }>;
+  updatePassword: (password: string) => Promise<{ error: unknown | null }>;
   updateUserProfile: (data: Partial<User>) => void;
 }
 
@@ -39,8 +38,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       return data;
-    } catch (error: any) {
-      console.error('Error in fetchUserProfile:', error.message);
+    } catch (error: unknown) {
+      console.error('Error in fetchUserProfile:', error instanceof Error ? error.message : 'Unknown error');
       return null;
     }
   };
@@ -50,32 +49,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Initial session check
     const getInitialSession = async () => {
-  try {
-    setIsLoading(true);
-    console.log("Getting initial session...");
-    
-    const { data, error } = await supabase.auth.getSession();
-    
-    if (error) {
-      throw error;
-    }
-
-    console.log("Initial session:", data.session ? "exists" : "null");
-    setSession(data.session);
-
-    if (data.session?.user) {
-      const profile = await fetchUserProfile(data.session.user.id);
-      console.log("Initial profile:", profile ? "loaded" : "null");
-      setUser(profile);
-    }
-  } catch (error) {
-    console.error("Error getting initial session:", error);
-  } finally {
-    setIsLoading(false); // ✅ Ensure loading is false after session check
-    console.log("Initial auth loading completed");
-  }
-};
-
+      try {
+        setIsLoading(true);
+        console.log("Getting initial session...");
+        
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          throw error;
+        }
+        
+        console.log("Initial session:", data.session ? "exists" : "null");
+        setSession(data.session);
+        
+        if (data.session?.user) {
+          const profile = await fetchUserProfile(data.session.user.id);
+          console.log("Initial profile:", profile ? "loaded" : "null");
+          setUser(profile);
+        } else {
+          // Explicitly set user to null when no session exists
+          setUser(null);
+        }
+      } catch (error) {
+        console.error("Error getting initial session:", error);
+        // Ensure user is set to null on error
+        setUser(null);
+        setSession(null);
+      } finally {
+        setIsLoading(false);
+        console.log("Initial auth loading completed");
+      }
+    };
 
     getInitialSession();
     
@@ -83,22 +87,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         console.log("Auth state change:", event);
-        setSession(newSession);
-    
-        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-          if (newSession?.user) {
-            setIsLoading(true); 
-            const profile = await fetchUserProfile(newSession.user.id);
-            setUser(profile);
-          }
-        } else if (event === "SIGNED_OUT") {
-          setUser(null);
-        }
         
-        setIsLoading(false); // ✅ Make sure this runs after auth state changes
+        setSession(newSession);
+        
+        try {
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (newSession?.user) {
+              setIsLoading(true);
+              const profile = await fetchUserProfile(newSession.user.id);
+              if (profile) {
+                setUser(profile);
+              } else {
+                console.error("Failed to fetch user profile after auth state change");
+                setUser(null);
+              }
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+          }
+        } catch (error) {
+          console.error("Error in auth state change handler:", error);
+          // Reset auth state on error
+          setUser(null);
+        } finally {
+          // Ensure loading state is always turned off
+          setIsLoading(false);
+        }
       }
     );
-    
 
     // Cleanup subscription
     return () => {
@@ -132,9 +148,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       return { error: null };
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Signup failed", {
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
       });
       return { error };
     }
@@ -167,9 +183,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       return { error: null };
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Login failed", {
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
       });
       return { error };
     } finally {
@@ -184,9 +200,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setSession(null);
       toast.success("Logged out successfully");
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Error signing out", {
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
       });
     } finally {
       setIsLoading(false);
@@ -210,9 +226,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       return { error };
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Error", {
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
       });
       return { error };
     }
@@ -235,9 +251,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       return { error };
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Error", {
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
       });
       return { error };
     }

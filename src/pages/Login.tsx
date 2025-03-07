@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, LogIn } from "lucide-react";
@@ -6,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
 import MainLayout from "@/layouts/MainLayout";
+
 import { toast } from "sonner";
 
 const Login = () => {
@@ -17,6 +17,8 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+
+  
   // If user is already logged in, redirect to dashboard
   useEffect(() => {
     if (user) {
@@ -46,9 +48,13 @@ const Login = () => {
       
       // Navigate handled by the useEffect above when user state changes
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error("Login failed", {
-        description: error.message || "Please check your credentials and try again",
+        description: error instanceof Error 
+          ? error.message 
+          : typeof error === 'object' && error && 'message' in error && typeof error.message === 'string'
+            ? error.message
+            : "Please check your credentials and try again"
       });
     } finally {
       setIsLoading(false);
