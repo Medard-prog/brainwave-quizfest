@@ -43,9 +43,9 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
   
   // If still loading but not past threshold, render nothing
-  if (isLoading) {
-    return null;
-  }
+  //if (isLoading) {
+  //  return null;
+  //}
 
   // If not loading and no user, redirect to login
   if (!user) {
