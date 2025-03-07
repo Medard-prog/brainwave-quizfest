@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, LayoutDashboard, Plus, BarChart, Settings, LogOut, Users, PlaySquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutDashboard, Plus, BarChart, Settings, LogOut, Users, PlaySquare, BookOpen } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 import Logo from './Logo';
@@ -93,10 +93,18 @@ const Sidebar = () => {
         />
         
         <SidebarLink
-          icon={PlaySquare}
+          icon={BookOpen}
           href="/my-quizzes"
           label="My Quizzes"
           isActive={isActive('/my-quizzes')}
+          isCollapsed={isCollapsed}
+        />
+        
+        <SidebarLink
+          icon={PlaySquare}
+          href="/host"
+          label="Host Game"
+          isActive={isActive('/host')}
           isCollapsed={isCollapsed}
         />
         

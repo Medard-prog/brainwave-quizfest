@@ -16,6 +16,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import CreateQuiz from "./pages/CreateQuiz";
+import MyQuizzesPage from "./pages/MyQuizzesPage";
 import Join from "./pages/Join";
 import JoinWithPin from "./pages/JoinWithPin";
 import NotFound from "./pages/NotFound";
@@ -50,9 +51,10 @@ const App = () => (
             
             {/* Protected routes - authenticated users only */}
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/dashboard/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
-            <Route path="/dashboard/participants" element={<ProtectedRoute><ParticipantsPage /></ProtectedRoute>} />
-            <Route path="/dashboard/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+            <Route path="/my-quizzes" element={<ProtectedRoute><MyQuizzesPage /></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
+            <Route path="/participants" element={<ProtectedRoute><ParticipantsPage /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/create-quiz" element={<ProtectedRoute><CreateQuiz /></ProtectedRoute>} />
             <Route path="/host/:quizId" element={<ProtectedRoute><HostGame /></ProtectedRoute>} />
             <Route path="/present/:sessionId" element={<ProtectedRoute><GamePresentation /></ProtectedRoute>} />

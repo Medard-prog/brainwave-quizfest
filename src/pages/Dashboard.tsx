@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { Quiz } from "@/lib/types";
+import { toast } from "sonner";
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -19,6 +20,9 @@ const Dashboard = () => {
       if (!user) return;
       
       try {
+        console.log("Fetching quizzes for user:", user.id);
+        setIsLoading(true);
+        
         const { data, error } = await supabase
           .from('quizzes')
           .select(`
@@ -29,8 +33,12 @@ const Dashboard = () => {
           .order('created_at', { ascending: false });
         
         if (error) {
+          console.error("Error fetching quizzes:", error);
+          toast.error("Failed to load quizzes");
           throw error;
         }
+        
+        console.log("Quizzes fetched:", data);
         
         // Process data to format question_count
         const formattedData = data.map((quiz) => ({
@@ -41,7 +49,7 @@ const Dashboard = () => {
         
         setQuizzes(formattedData);
       } catch (error) {
-        console.error("Error fetching quizzes:", error);
+        console.error("Error in fetchQuizzes:", error);
       } finally {
         setIsLoading(false);
       }

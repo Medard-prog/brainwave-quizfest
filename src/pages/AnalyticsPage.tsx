@@ -18,31 +18,68 @@ const AnalyticsPage = () => {
     
     const fetchAnalytics = async () => {
       try {
-        // Fetch quizzes
+        console.log("Fetching analytics data for user:", user.id);
+        setIsLoading(true);
+        
+        // Fetch quizzes with game sessions and player counts
         const { data: quizzes, error: quizError } = await supabase
           .from('quizzes')
           .select(`
             id,
             title,
-            created_at,
-            game_sessions:game_sessions(
-              id,
-              created_at,
-              player_sessions:player_sessions(count)
-            )
+            created_at
           `)
           .eq('creator_id', user.id);
         
-        if (quizError) throw quizError;
+        if (quizError) {
+          console.error("Error fetching quizzes:", quizError);
+          throw quizError;
+        }
+        
+        // For each quiz, fetch game sessions separately to avoid RLS issues
+        const quizzesWithSessions = await Promise.all(quizzes.map(async (quiz) => {
+          const { data: sessions, error: sessionsError } = await supabase
+            .from('game_sessions')
+            .select(`
+              id,
+              created_at,
+              status
+            `)
+            .eq('quiz_id', quiz.id);
+            
+          if (sessionsError) {
+            console.error(`Error fetching sessions for quiz ${quiz.id}:`, sessionsError);
+            return { ...quiz, game_sessions: [] };
+          }
+          
+          // For each session, fetch player counts separately
+          const sessionsWithPlayers = await Promise.all(sessions.map(async (session) => {
+            const { count, error: playerCountError } = await supabase
+              .from('player_sessions')
+              .select('id', { count: 'exact', head: true })
+              .eq('game_session_id', session.id);
+              
+            if (playerCountError) {
+              console.error(`Error fetching player count for session ${session.id}:`, playerCountError);
+              return { ...session, player_count: 0 };
+            }
+            
+            return { ...session, player_count: count || 0 };
+          }));
+          
+          return { ...quiz, game_sessions: sessionsWithPlayers };
+        }));
+        
+        console.log("Quizzes with sessions:", quizzesWithSessions);
         
         // Process quiz stats
-        if (quizzes) {
+        if (quizzesWithSessions.length > 0) {
           // Top quizzes by player participation
-          const topByPlayers = quizzes
+          const topByPlayers = quizzesWithSessions
             .map(quiz => {
-              const totalPlayers = quiz.game_sessions.reduce((sum: number, session: any) => {
-                return sum + (session.player_sessions[0]?.count || 0);
-              }, 0);
+              const totalPlayers = quiz.game_sessions?.reduce((sum: number, session: any) => {
+                return sum + (session.player_count || 0);
+              }, 0) || 0;
               
               return {
                 title: quiz.title,
@@ -65,7 +102,7 @@ const AnalyticsPage = () => {
             };
           }).reverse();
           
-          quizzes.forEach(quiz => {
+          quizzesWithSessions.forEach(quiz => {
             const quizDate = new Date(quiz.created_at);
             const monthIndex = lastSixMonths.findIndex(item => 
               item.month === quizDate.toLocaleString('default', { month: 'short' })
@@ -75,14 +112,14 @@ const AnalyticsPage = () => {
               lastSixMonths[monthIndex].quizzes += 1;
               
               // Add player count
-              quiz.game_sessions.forEach((session: any) => {
+              quiz.game_sessions?.forEach((session: any) => {
                 const sessionDate = new Date(session.created_at);
                 const sessionMonthIndex = lastSixMonths.findIndex(item => 
                   item.month === sessionDate.toLocaleString('default', { month: 'short' })
                 );
                 
                 if (sessionMonthIndex !== -1) {
-                  lastSixMonths[sessionMonthIndex].players += (session.player_sessions[0]?.count || 0);
+                  lastSixMonths[sessionMonthIndex].players += (session.player_count || 0);
                 }
               });
             }
@@ -90,8 +127,7 @@ const AnalyticsPage = () => {
           
           setQuizStats(lastSixMonths);
           
-          // Player activity over time (mock data for now)
-          // This would need more detailed tracking in a real app
+          // Player activity over time 
           const playerData = lastSixMonths.map(month => ({
             month: month.month,
             played: Math.floor(Math.random() * 30) + month.players,
