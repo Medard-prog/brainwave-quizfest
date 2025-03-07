@@ -2,8 +2,8 @@
 import { supabase } from "./supabase";
 import { User } from "./types";
 
-// Maximum time to wait for authentication to complete before timing out
-export const AUTH_TIMEOUT_MS = 5000;
+// Increase timeout from 5000ms to 15000ms to give more time for authentication
+export const AUTH_TIMEOUT_MS = 15000;
 
 // Helper function to fetch user profile with error handling
 export const fetchUserProfile = async (userId: string): Promise<User | null> => {

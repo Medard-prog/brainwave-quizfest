@@ -25,6 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authInitialized, setAuthInitialized] = useState(false);
 
   // Refresh user profile data from the database
   const refreshUserProfile = useCallback(async () => {
@@ -34,27 +35,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     try {
+      console.log("Refreshing user profile for ID:", session.user.id);
       const profile = await fetchUserProfile(session.user.id);
       
       if (profile) {
+        console.log("Profile found:", profile.username);
         setUser(profile);
+        return profile;
       } else {
         // If no profile found, try to create a default one
+        console.log("No profile found, creating default profile");
         const newProfile = await createDefaultProfile(
           session.user.id, 
           session.user.user_metadata
         );
         
         if (newProfile) {
+          console.log("New profile created:", newProfile.username);
           setUser(newProfile);
+          return newProfile;
         } else {
           console.error("Failed to create or fetch user profile");
           setUser(null);
+          return null;
         }
       }
     } catch (error) {
       console.error("Error in refreshUserProfile:", error);
       setUser(null);
+      return null;
     }
   }, [session]);
 
@@ -71,6 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         timeoutId = setTimeout(() => {
           console.warn("Auth loading timed out after", AUTH_TIMEOUT_MS, "ms");
           setIsLoading(false);
+          setAuthInitialized(true);
         }, AUTH_TIMEOUT_MS);
         
         // Get initial session
@@ -84,15 +94,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(data.session);
         
         if (data.session?.user) {
-          await refreshUserProfile();
+          const profile = await refreshUserProfile();
+          if (!profile) {
+            console.warn("No profile found or created for user:", data.session.user.id);
+          }
         }
-      } catch (error) {
-        console.error("Auth initialization error:", error);
-        setSession(null);
-        setUser(null);
-      } finally {
+        
+        // Clear timeout as we've successfully initialized
         clearTimeout(timeoutId);
         setIsLoading(false);
+        setAuthInitialized(true);
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+        clearTimeout(timeoutId);
+        setSession(null);
+        setUser(null);
+        setIsLoading(false);
+        setAuthInitialized(true);
       }
     };
 
@@ -106,14 +124,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           setIsLoading(true);
           if (newSession?.user) {
-            await refreshUserProfile();
+            const profile = await refreshUserProfile();
+            if (!profile) {
+              console.warn("No profile found or created on auth state change");
+            }
           }
+          setIsLoading(false);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
         }
       } catch (error) {
         console.error("Auth state change error:", error);
-      } finally {
         setIsLoading(false);
       }
     });
@@ -191,6 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error("Login failed", {
           description: error.message,
         });
+        setIsLoading(false);
         return { error };
       }
       
@@ -198,18 +220,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (data.session?.user) {
         // Refresh user profile after sign in
-        await refreshUserProfile();
+        const profile = await refreshUserProfile();
+        if (!profile) {
+          console.warn("No profile found after login for user:", data.session.user.id);
+          // Try again to create profile if it doesn't exist
+          await createDefaultProfile(data.session.user.id, data.session.user.user_metadata);
+        }
       }
       
+      setIsLoading(false);
       return { error: null };
     } catch (error: unknown) {
       console.error("Error in signIn:", error);
       toast.error("Login failed", {
         description: error instanceof Error ? error.message : 'An unknown error occurred',
       });
-      return { error };
-    } finally {
       setIsLoading(false);
+      return { error };
     }
   };
 

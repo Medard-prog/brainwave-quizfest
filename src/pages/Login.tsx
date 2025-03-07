@@ -45,6 +45,9 @@ const Login = () => {
       }
       
       // Navigate handled by the useEffect above when user state changes
+      toast.success("Login successful", {
+        description: "Welcome back!",
+      });
       
     } catch (error: unknown) {
       toast.error("Login failed", {
