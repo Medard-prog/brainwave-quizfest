@@ -9,7 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 
 const JoinWithPin = () => {
-  const { gamePin } = useParams<{ gamePin: string }>();
+  const { pin } = useParams<{ pin: string }>();
   const { user } = useAuth();
   const [playerName, setPlayerName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -27,15 +27,17 @@ const JoinWithPin = () => {
       try {
         setIsLoading(true);
         
-        if (!gamePin) {
+        if (!pin) {
           setError("No game PIN provided");
           return;
         }
         
+        console.log("Checking game PIN:", pin);
+        
         const { data, error: pinError } = await supabase
           .from('quizzes')
           .select('id')
-          .eq('game_pin', gamePin)
+          .eq('game_pin', pin)
           .maybeSingle();
         
         if (pinError) {
@@ -45,10 +47,12 @@ const JoinWithPin = () => {
         }
         
         if (!data) {
+          console.log("No quiz found with PIN:", pin);
           setError("Invalid game PIN. No active game found with this PIN.");
           return;
         }
         
+        console.log("Valid game PIN found, quiz ID:", data.id);
         // PIN is valid, ready to join
         setError(null);
       } catch (err) {
@@ -60,12 +64,12 @@ const JoinWithPin = () => {
     };
     
     checkGamePin();
-  }, [gamePin, user]);
+  }, [pin, user]);
 
   const handleJoinGame = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!gamePin) {
+    if (!pin) {
       toast.error("Game PIN required");
       return;
     }
@@ -78,16 +82,21 @@ const JoinWithPin = () => {
     setIsJoining(true);
     
     try {
+      console.log("Joining game with PIN:", pin);
+      
       // Find the quiz with this game pin
       const { data: quizData, error: quizError } = await supabase
         .from('quizzes')
         .select('id')
-        .eq('game_pin', gamePin)
+        .eq('game_pin', pin)
         .maybeSingle();
       
       if (quizError || !quizData) {
+        console.error("Error finding quiz:", quizError);
         throw new Error("Invalid game PIN. Please check and try again.");
       }
+      
+      console.log("Found quiz with ID:", quizData.id);
       
       // Find an active game session for this quiz
       const { data: sessionData, error: sessionError } = await supabase
@@ -99,9 +108,17 @@ const JoinWithPin = () => {
         .limit(1)
         .maybeSingle();
       
-      if (sessionError || !sessionData) {
+      if (sessionError) {
+        console.error("Error finding game session:", sessionError);
+        throw new Error("Error finding active game. Please try again.");
+      }
+      
+      if (!sessionData) {
+        console.error("No active game session found for quiz:", quizData.id);
         throw new Error("No active game found with this PIN. The game may have ended or not started yet.");
       }
+      
+      console.log("Found game session with ID:", sessionData.id);
       
       // Check if player already exists in this session
       if (user) {
@@ -113,6 +130,7 @@ const JoinWithPin = () => {
           .maybeSingle();
         
         if (existingPlayer) {
+          console.log("Player already exists in session:", existingPlayer.id);
           navigate(`/play/${sessionData.id}`, { 
             state: { 
               playerSession: existingPlayer,
@@ -137,8 +155,11 @@ const JoinWithPin = () => {
         .single();
       
       if (playerError) {
+        console.error("Error creating player session:", playerError);
         throw new Error("Failed to join the game. Please try again.");
       }
+      
+      console.log("Created player session:", playerSession.id);
       
       // Navigate to the game lobby
       navigate(`/play/${sessionData.id}`, { 
@@ -178,7 +199,7 @@ const JoinWithPin = () => {
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold mb-2">Join Game</h1>
               <p className="text-lg text-brainblitz-dark-gray">
-                You're joining a game with PIN: <span className="font-semibold">{gamePin}</span>
+                You're joining a game with PIN: <span className="font-semibold">{pin}</span>
               </p>
             </div>
             

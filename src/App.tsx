@@ -23,6 +23,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import ParticipantsPage from "@/pages/ParticipantsPage";
 import Join from "@/pages/Join";
 import JoinWithPin from "@/pages/JoinWithPin";
+import PlayGame from "@/pages/PlayGame";
 import Logout from "@/pages/Logout";
 import NotFound from "@/pages/NotFound";
 
@@ -34,6 +35,7 @@ function App() {
         <Route path="/" element={<Index />} />
         <Route path="/join" element={<Join />} />
         <Route path="/join/:pin" element={<JoinWithPin />} />
+        <Route path="/play/:sessionId" element={<PlayGame />} />
         
         {/* Auth routes wrapped in PublicRoute */}
         <Route 

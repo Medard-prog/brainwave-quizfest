@@ -80,7 +80,7 @@ const EditQuiz = () => {
         setShuffleQuestions(quizData.shuffle_questions || false);
         setIsPublic(quizData.is_public || false);
         
-        // Fetch questions using the correct approach
+        // Fetch questions
         console.log("Fetching questions for quiz ID:", quizId);
         const { data: questionsData, error: questionsError } = await supabase
           .from('questions')

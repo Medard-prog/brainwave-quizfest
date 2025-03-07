@@ -1,13 +1,22 @@
+
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Play, XCircle } from "lucide-react";
+import { Play, XCircle, QrCode } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import { Quiz } from "@/lib/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogClose
+} from "@/components/ui/dialog";
 
 const HostGame = () => {
   const { quizId } = useParams<{ quizId: string }>();
@@ -16,6 +25,8 @@ const HostGame = () => {
   
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [joinUrl, setJoinUrl] = useState('');
 
   useEffect(() => {
     if (!quizId || !user) return;
@@ -44,6 +55,13 @@ const HostGame = () => {
         }
         
         setQuiz(quizData);
+        
+        // Generate join URL if game pin exists
+        if (quizData.game_pin) {
+          // Get the base URL from the current window location
+          const baseUrl = window.location.origin;
+          setJoinUrl(`${baseUrl}/join/${quizData.game_pin}`);
+        }
       } catch (error) {
         console.error("Error in fetchQuiz:", error);
         toast.error("An error occurred while loading quiz data");
@@ -103,8 +121,12 @@ const HostGame = () => {
           throw updateError;
         }
         
-        // Update local quiz state
+        // Update local quiz state and join URL
+        const baseUrl = window.location.origin;
+        const newJoinUrl = `${baseUrl}/join/${pin}`;
+        
         setQuiz({ ...quiz, game_pin: pin });
+        setJoinUrl(newJoinUrl);
       }
       
       // Create a new game session
@@ -158,6 +180,7 @@ const HostGame = () => {
       
       // Update local quiz state
       setQuiz({ ...quiz, game_pin: null });
+      setJoinUrl('');
       
       toast.success("Game stopped successfully");
     } catch (error) {
@@ -209,12 +232,20 @@ const HostGame = () => {
                 <p className="text-sm text-brainblitz-dark-gray mb-1">
                   Current Game PIN:
                 </p>
-                <div className="text-2xl font-bold text-green-500">
+                <div className="text-2xl font-bold text-green-500 mb-2">
                   {quiz.game_pin}
                 </div>
-                <p className="text-sm text-brainblitz-dark-gray mt-1">
+                <p className="text-sm text-brainblitz-dark-gray mb-4">
                   Share this PIN with your players to join the game.
                 </p>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowQrCode(true)}
+                  className="mb-4"
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  Show QR Code
+                </Button>
               </div>
             ) : (
               <p className="text-sm text-brainblitz-dark-gray mb-4">
@@ -245,6 +276,51 @@ const HostGame = () => {
           </div>
         </div>
       </div>
+      
+      <Dialog open={showQrCode} onOpenChange={setShowQrCode}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>QR Code for Game PIN: {quiz.game_pin}</DialogTitle>
+            <DialogDescription>
+              Players can scan this QR code to join the game directly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center p-4">
+            {joinUrl && (
+              <>
+                <div className="bg-white p-4 rounded-lg shadow-md mb-4">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`} 
+                    alt="QR Code to join game"
+                    className="w-48 h-48"
+                  />
+                </div>
+                <p className="text-sm text-center mb-2">or share this link:</p>
+                <div className="flex items-center justify-center w-full">
+                  <input
+                    type="text"
+                    value={joinUrl}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-l-md text-sm"
+                  />
+                  <Button
+                    onClick={() => {
+                      navigator.clipboard.writeText(joinUrl);
+                      toast.success("Link copied to clipboard");
+                    }}
+                    className="rounded-l-none"
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+          <DialogClose asChild>
+            <Button variant="outline" className="w-full">Close</Button>
+          </DialogClose>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

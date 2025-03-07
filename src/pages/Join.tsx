@@ -1,19 +1,18 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import MainLayout from "@/layouts/MainLayout";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { Spinner } from "@/components/ui/spinner";
 
 const Join = () => {
   const [gamePin, setGamePin] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
-  const { toast: uiToast } = useToast();
   const navigate = useNavigate();
 
   // Pre-populate player name if user is logged in
@@ -43,16 +42,21 @@ const Join = () => {
     setIsLoading(true);
     
     try {
+      console.log("Attempting to join game with PIN:", gamePin);
+      
       // Find the quiz with this game pin
       const { data: quizData, error: quizError } = await supabase
         .from('quizzes')
         .select('id')
         .eq('game_pin', gamePin)
-        .single();
+        .maybeSingle();
       
-      if (quizError) {
+      if (quizError || !quizData) {
+        console.error("Error finding quiz:", quizError);
         throw new Error("Invalid game PIN. Please check and try again.");
       }
+      
+      console.log("Found quiz with ID:", quizData.id);
       
       // Find an active game session for this quiz
       const { data: sessionData, error: sessionError } = await supabase
@@ -62,11 +66,14 @@ const Join = () => {
         .eq('status', 'waiting')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       
-      if (sessionError) {
+      if (sessionError || !sessionData) {
+        console.error("Error finding game session:", sessionError);
         throw new Error("No active game found with this PIN. The game may have ended or not started yet.");
       }
+      
+      console.log("Found game session with ID:", sessionData.id);
       
       // Check if player already exists in this session
       if (user) {
@@ -78,6 +85,7 @@ const Join = () => {
           .maybeSingle();
         
         if (existingPlayer) {
+          console.log("Player already exists in session:", existingPlayer.id);
           navigate(`/play/${sessionData.id}`, { 
             state: { 
               playerSession: existingPlayer,
@@ -102,8 +110,11 @@ const Join = () => {
         .single();
       
       if (playerError) {
+        console.error("Error creating player session:", playerError);
         throw new Error("Failed to join the game. Please try again.");
       }
+      
+      console.log("Created player session:", playerSession.id);
       
       // Navigate to the game lobby
       navigate(`/play/${sessionData.id}`, { 
@@ -114,6 +125,7 @@ const Join = () => {
       });
       
     } catch (error: any) {
+      console.error("Join error:", error);
       toast.error("Failed to join game", {
         description: error.message || "Something went wrong. Please try again."
       });
@@ -209,7 +221,10 @@ const Join = () => {
             disabled={isLoading || gamePin.length !== 6 || !playerName}
           >
             {isLoading ? (
-              <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></span>
+              <div className="flex items-center justify-center">
+                <Spinner size="sm" className="mr-2" />
+                <span>Joining...</span>
+              </div>
             ) : (
               "Join Game"
             )}

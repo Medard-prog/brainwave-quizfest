@@ -1,6 +1,7 @@
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Edit, Play, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Search, Edit, Play, Trash2, AlertTriangle, QrCode } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,7 @@ const MyQuizzesPage = () => {
         console.log("Fetching quizzes for user:", user.id);
         setIsLoading(true);
         
-        // Get quizzes - we'll do a separate query for questions
+        // Get quizzes
         const { data: quizzesData, error: quizzesError } = await supabase
           .from('quizzes')
           .select('*')
@@ -52,47 +53,58 @@ const MyQuizzesPage = () => {
         
         if (!quizzesData || quizzesData.length === 0) {
           setQuizzes([]);
+          setIsLoading(false);
           return;
         }
         
         // Get all quiz IDs
         const quizIds = quizzesData.map(quiz => quiz.id);
         
-        // Get question count for all quizzes
-        const questionCountMap: Record<string, number> = {};
+        // Fetch all questions for all quizzes
         const { data: questionsData, error: questionsError } = await supabase
           .from('questions')
-          .select('quiz_id')
+          .select('*')
           .in('quiz_id', quizIds);
         
         if (questionsError) {
           console.error("Error fetching questions:", questionsError);
-          // Continue anyway, default counts to 0
-        } else if (questionsData) {
-          // Count questions per quiz_id
-          questionsData.forEach(item => {
-            questionCountMap[item.quiz_id] = (questionCountMap[item.quiz_id] || 0) + 1;
-          });
         }
         
-        // Get game sessions count
-        const gameCountMap: Record<string, number> = {};
+        // Fetch all game sessions for all quizzes
         const { data: gamesData, error: gamesError } = await supabase
           .from('game_sessions')
-          .select('quiz_id')
+          .select('*')
           .in('quiz_id', quizIds);
         
         if (gamesError) {
           console.error("Error fetching game sessions:", gamesError);
-          // Continue anyway, default counts to 0
-        } else if (gamesData) {
-          // Count game sessions per quiz_id
-          gamesData.forEach(item => {
-            gameCountMap[item.quiz_id] = (gameCountMap[item.quiz_id] || 0) + 1;
+        }
+        
+        // Count questions and games per quiz
+        const questionCountMap: Record<string, number> = {};
+        const gameCountMap: Record<string, number> = {};
+        
+        // Initialize counts to 0 for all quizzes
+        quizIds.forEach(id => {
+          questionCountMap[id] = 0;
+          gameCountMap[id] = 0;
+        });
+        
+        // Count questions per quiz
+        if (questionsData?.length) {
+          questionsData.forEach(question => {
+            questionCountMap[question.quiz_id] = (questionCountMap[question.quiz_id] || 0) + 1;
           });
         }
         
-        // Add the counts to quizzes
+        // Count games per quiz
+        if (gamesData?.length) {
+          gamesData.forEach(game => {
+            gameCountMap[game.quiz_id] = (gameCountMap[game.quiz_id] || 0) + 1;
+          });
+        }
+        
+        // Add counts to quizzes
         const enhancedQuizzes = quizzesData.map(quiz => ({
           ...quiz,
           question_count: questionCountMap[quiz.id] || 0,
