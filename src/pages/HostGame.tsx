@@ -25,6 +25,7 @@ const HostGame = () => {
   
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   const [joinUrl, setJoinUrl] = useState('');
 
@@ -77,7 +78,7 @@ const HostGame = () => {
     if (!user || !quiz) return;
     
     try {
-      setIsLoading(true);
+      setIsCreatingSession(true);
       
       // Only generate game pin if it doesn't exist yet
       if (!quiz.game_pin) {
@@ -127,6 +128,17 @@ const HostGame = () => {
         
         setQuiz({ ...quiz, game_pin: pin });
         setJoinUrl(newJoinUrl);
+
+        // Update the local state again to reflect changes
+        const { data: updatedQuiz } = await supabase
+          .from('quizzes')
+          .select('*')
+          .eq('id', quiz.id)
+          .single();
+          
+        if (updatedQuiz) {
+          setQuiz(updatedQuiz);
+        }
       }
       
       // Create a new game session
@@ -156,7 +168,7 @@ const HostGame = () => {
       console.error("Error in startGame:", error);
       toast.error("An error occurred while starting the game");
     } finally {
-      setIsLoading(false);
+      setIsCreatingSession(false);
     }
   };
 
@@ -222,12 +234,12 @@ const HostGame = () => {
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Host Game</h1>
           
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-xl font-semibold mb-4">{quiz.title}</h2>
+            <h2 className="text-xl font-semibold mb-4">{quiz?.title}</h2>
             <p className="text-brainblitz-dark-gray mb-4">
-              {quiz.description || "No description provided"}
+              {quiz?.description || "No description provided"}
             </p>
             
-            {quiz.game_pin ? (
+            {quiz?.game_pin ? (
               <div className="mb-4">
                 <p className="text-sm text-brainblitz-dark-gray mb-1">
                   Current Game PIN:
@@ -254,7 +266,7 @@ const HostGame = () => {
             )}
             
             <div className="flex justify-between">
-              {quiz.game_pin ? (
+              {quiz?.game_pin ? (
                 <Button 
                   variant="destructive"
                   onClick={stopGame}
@@ -266,10 +278,19 @@ const HostGame = () => {
               ) : (
                 <Button 
                   onClick={startGame}
-                  disabled={isLoading}
+                  disabled={isLoading || isCreatingSession}
                 >
-                  <Play className="mr-2 h-4 w-4" />
-                  Start Game
+                  {isCreatingSession ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Starting Game...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Start Game
+                    </>
+                  )}
                 </Button>
               )}
             </div>
@@ -280,7 +301,7 @@ const HostGame = () => {
       <Dialog open={showQrCode} onOpenChange={setShowQrCode}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>QR Code for Game PIN: {quiz.game_pin}</DialogTitle>
+            <DialogTitle>QR Code for Game PIN: {quiz?.game_pin}</DialogTitle>
             <DialogDescription>
               Players can scan this QR code to join the game directly.
             </DialogDescription>

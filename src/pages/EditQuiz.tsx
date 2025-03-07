@@ -80,8 +80,17 @@ const EditQuiz = () => {
         setShuffleQuestions(quizData.shuffle_questions || false);
         setIsPublic(quizData.is_public || false);
         
+        // Use the secure function to get questions
+        const { data: questionCountData, error: questionCountError } = await supabase
+          .rpc('get_quiz_question_count', { quiz_id: quizId });
+        
+        if (questionCountError) {
+          console.error("Error counting questions:", questionCountError);
+        } else {
+          console.log("Question count:", questionCountData);
+        }
+        
         // Fetch questions
-        console.log("Fetching questions for quiz ID:", quizId);
         const { data: questionsData, error: questionsError } = await supabase
           .from('questions')
           .select('*')

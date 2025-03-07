@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
@@ -20,8 +19,8 @@ const PlayGame = () => {
   const [playerName, setPlayerName] = useState("");
   const [gameStatus, setGameStatus] = useState<"waiting" | "active" | "completed">("waiting");
   const [otherPlayers, setOtherPlayers] = useState<PlayerSession[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   
-  // Effect to initialize the game
   useEffect(() => {
     if (!sessionId) return;
     
@@ -29,7 +28,6 @@ const PlayGame = () => {
       try {
         setIsLoading(true);
         
-        // Get player session either from location state or from database
         let playerSessionData = location.state?.playerSession;
         let playerNameData = location.state?.playerName || "";
         
@@ -37,7 +35,6 @@ const PlayGame = () => {
         console.log("Initial player name from state:", playerNameData);
         
         if (!playerSessionData) {
-          // We need to redirect to join page
           navigate("/join");
           return;
         }
@@ -45,7 +42,6 @@ const PlayGame = () => {
         setPlayerSession(playerSessionData);
         setPlayerName(playerNameData);
         
-        // Get game session
         const { data: sessionData, error: sessionError } = await supabase
           .from('game_sessions')
           .select('*, quiz:quiz_id(*)')
@@ -64,7 +60,6 @@ const PlayGame = () => {
         setQuiz(sessionData.quiz);
         setGameStatus(sessionData.status);
         
-        // Get other players
         const { data: playersData, error: playersError } = await supabase
           .from('player_sessions')
           .select('*')
@@ -86,7 +81,6 @@ const PlayGame = () => {
     
     initializeGame();
     
-    // Set up real-time subscription for game status updates
     const gameSubscription = supabase
       .channel('game_changes')
       .on('postgres_changes', {
@@ -105,7 +99,6 @@ const PlayGame = () => {
       })
       .subscribe();
     
-    // Set up real-time subscription for player joins
     const playerSubscription = supabase
       .channel('player_changes')
       .on('postgres_changes', {

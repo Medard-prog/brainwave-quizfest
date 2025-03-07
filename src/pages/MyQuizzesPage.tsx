@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Search, Edit, Play, Trash2, AlertTriangle, QrCode } from "lucide-react";
@@ -31,91 +30,58 @@ const MyQuizzesPage = () => {
 
   useEffect(() => {
     const fetchQuizzes = async () => {
-      if (!user) return;
-      
       try {
-        console.log("Fetching quizzes for user:", user.id);
         setIsLoading(true);
         
-        // Get quizzes
-        const { data: quizzesData, error: quizzesError } = await supabase
+        const { data: quizzes, error } = await supabase
           .from('quizzes')
-          .select('*')
-          .eq('creator_id', user.id);
+          .select('*, profiles:creator_id(*)')
+          .eq('creator_id', user!.id)
+          .order('created_at', { ascending: false });
         
-        if (quizzesError) {
-          console.error("Error fetching quizzes:", quizzesError);
+        if (error) {
+          console.error("Error fetching quizzes:", error);
           toast.error("Failed to load quizzes");
-          throw quizzesError;
-        }
-        
-        console.log("Basic quiz data fetched:", quizzesData);
-        
-        if (!quizzesData || quizzesData.length === 0) {
-          setQuizzes([]);
-          setIsLoading(false);
           return;
         }
         
-        // Get all quiz IDs
-        const quizIds = quizzesData.map(quiz => quiz.id);
+        console.log("Quizzes loaded:", quizzes);
         
-        // Fetch all questions for all quizzes
-        const { data: questionsData, error: questionsError } = await supabase
-          .from('questions')
-          .select('*')
-          .in('quiz_id', quizIds);
+        // For each quiz, get the question count using our secure function
+        const quizzesWithCounts = await Promise.all(
+          quizzes.map(async (quiz) => {
+            const { data: questionCount, error: countError } = await supabase
+              .rpc('get_quiz_question_count', { quiz_id: quiz.id });
+              
+            if (countError) {
+              console.error(`Error getting question count for quiz ${quiz.id}:`, countError);
+              return { ...quiz, question_count: 0 };
+            }
+            
+            const { data: sessionCount, error: sessionError } = await supabase
+              .rpc('get_quiz_session_count', { quiz_id: quiz.id });
+              
+            if (sessionError) {
+              console.error(`Error getting session count for quiz ${quiz.id}:`, sessionError);
+              return { 
+                ...quiz, 
+                question_count: questionCount || 0,
+                game_count: 0 
+              };
+            }
+            
+            return { 
+              ...quiz, 
+              question_count: questionCount || 0,
+              game_count: sessionCount || 0 
+            };
+          })
+        );
         
-        if (questionsError) {
-          console.error("Error fetching questions:", questionsError);
-        }
-        
-        // Fetch all game sessions for all quizzes
-        const { data: gamesData, error: gamesError } = await supabase
-          .from('game_sessions')
-          .select('*')
-          .in('quiz_id', quizIds);
-        
-        if (gamesError) {
-          console.error("Error fetching game sessions:", gamesError);
-        }
-        
-        // Count questions and games per quiz
-        const questionCountMap: Record<string, number> = {};
-        const gameCountMap: Record<string, number> = {};
-        
-        // Initialize counts to 0 for all quizzes
-        quizIds.forEach(id => {
-          questionCountMap[id] = 0;
-          gameCountMap[id] = 0;
-        });
-        
-        // Count questions per quiz
-        if (questionsData?.length) {
-          questionsData.forEach(question => {
-            questionCountMap[question.quiz_id] = (questionCountMap[question.quiz_id] || 0) + 1;
-          });
-        }
-        
-        // Count games per quiz
-        if (gamesData?.length) {
-          gamesData.forEach(game => {
-            gameCountMap[game.quiz_id] = (gameCountMap[game.quiz_id] || 0) + 1;
-          });
-        }
-        
-        // Add counts to quizzes
-        const enhancedQuizzes = quizzesData.map(quiz => ({
-          ...quiz,
-          question_count: questionCountMap[quiz.id] || 0,
-          game_count: gameCountMap[quiz.id] || 0
-        }));
-        
-        console.log("Enhanced quizzes:", enhancedQuizzes);
-        setQuizzes(enhancedQuizzes);
+        setQuizzes(quizzesWithCounts);
       } catch (error) {
         console.error("Error in fetchQuizzes:", error);
-        toast.error("Failed to load quizzes data");
+        toast.error("An error occurred while loading your quizzes");
       } finally {
         setIsLoading(false);
       }

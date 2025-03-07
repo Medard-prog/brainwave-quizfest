@@ -254,6 +254,36 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_quiz_question_count: {
+        Args: {
+          quiz_id: string
+        }
+        Returns: number
+      }
+      get_quiz_questions: {
+        Args: {
+          quiz_id: string
+        }
+        Returns: {
+          correct_answer: string | null
+          created_at: string | null
+          id: string
+          options: Json | null
+          order_num: number | null
+          points: number | null
+          question_text: string
+          question_type: string
+          quiz_id: string
+          time_limit: number | null
+          updated_at: string | null
+        }[]
+      }
+      get_quiz_session_count: {
+        Args: {
+          quiz_id: string
+        }
+        Returns: number
+      }
       user_is_game_host: {
         Args: {
           session_id: string
