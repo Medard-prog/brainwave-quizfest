@@ -150,34 +150,51 @@ const HostGame = () => {
       
       console.log("Creating new game session");
       
-      // Check if there's already an active session for this quiz
-      const { data: existingSession, error: checkError } = await supabase
-        .from('game_sessions')
-        .select('id')
-        .eq('quiz_id', quiz.id)
-        .eq('status', 'waiting')
-        .maybeSingle();
-      
-      if (checkError) {
-        console.error("Error checking existing sessions:", checkError);
+      // Method 1: Try to use an RPC if available
+      try {
+        // Check if there's already an active session for this quiz using RPC
+        const { data: activeSessions, error: rpcError } = await supabase
+          .rpc('get_active_sessions_for_quiz', { p_quiz_id: quiz.id });
+          
+        if (!rpcError && activeSessions && activeSessions.length > 0) {
+          // Navigate to the existing session
+          console.log("Found existing waiting session via RPC:", activeSessions[0].id);
+          navigate(`/present/${activeSessions[0].id}`);
+          return;
+        }
+      } catch (rpcError) {
+        console.error("RPC method not available, trying alternative approach:", rpcError);
       }
       
-      if (existingSession) {
-        console.log("Found existing waiting session:", existingSession.id);
+      // Method 2: Direct query but be more specific about what fields we need
+      // This can help avoid the recursion in some cases
+      const { data: existingSessions, error: queryError } = await supabase
+        .from('game_sessions')
+        .select('id')  // Select only ID field to minimize data
+        .eq('host_id', user.id)  // Be specific about the host
+        .eq('quiz_id', quiz.id)
+        .eq('status', 'waiting');
+      
+      if (!queryError && existingSessions && existingSessions.length > 0) {
+        console.log("Found existing waiting session:", existingSessions[0].id);
         // Navigate to the existing session
-        navigate(`/present/${existingSession.id}`);
+        navigate(`/present/${existingSessions[0].id}`);
         return;
       }
       
       // Create a new game session
-      const { data: sessionData, error: sessionError } = await supabase
+      const sessionData = {
+        quiz_id: quiz.id,
+        host_id: user.id,
+        status: 'waiting',
+        current_question_index: 0
+      };
+      
+      console.log("Creating session with data:", sessionData);
+      
+      const { data: newSession, error: sessionError } = await supabase
         .from('game_sessions')
-        .insert({
-          quiz_id: quiz.id,
-          host_id: user.id,
-          status: 'waiting',
-          current_question_index: 0
-        })
+        .insert(sessionData)
         .select()
         .single();
       
@@ -187,10 +204,10 @@ const HostGame = () => {
         return;
       }
       
-      console.log("Game session created:", sessionData);
+      console.log("Game session created:", newSession);
       
       // Navigate to the presentation page
-      navigate(`/present/${sessionData.id}`);
+      navigate(`/present/${newSession.id}`);
       
     } catch (error) {
       console.error("Error in startGame:", error);

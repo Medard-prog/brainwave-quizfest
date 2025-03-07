@@ -27,9 +27,11 @@ const PlayGame = () => {
     
     try {
       console.log("Fetching players for session:", sessionId);
+      
+      // Only select the fields we need to avoid RLS recursion
       const { data: playersData, error: playersError } = await supabase
         .from('player_sessions')
-        .select('*')
+        .select('id, player_name, score, created_at')
         .eq('game_session_id', sessionId);
       
       if (playersError) {
@@ -109,29 +111,69 @@ const PlayGame = () => {
         
         console.log("Fetching game session:", sessionId);
         
-        // Fetch the game session
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('game_sessions')
-          .select('*, quiz:quiz_id(*)')
-          .eq('id', sessionId)
-          .maybeSingle();
+        // Method 1: Try to use an RPC if available
+        let sessionData;
+        try {
+          // Check if session exists using RPC
+          const { data: sessions, error: rpcError } = await supabase
+            .rpc('get_game_session_details', { session_id: sessionId });
+            
+          if (!rpcError && sessions && sessions.length > 0) {
+            sessionData = sessions[0];
+            console.log("Game session found via RPC:", sessionData);
+          }
+        } catch (rpcError) {
+          console.error("RPC method not available, trying alternative approach:", rpcError);
+        }
+        
+        // Method 2: Direct query but be specific to avoid RLS recursion
+        if (!sessionData) {
+          const { data: gameData, error: gameError } = await supabase
+            .from('game_sessions')
+            .select('id, quiz_id, host_id, status, current_question_index')
+            .eq('id', sessionId)
+            .single();
+            
+          if (gameError) {
+            clearTimeout(timeoutId);
+            console.error("Error fetching game session:", gameError);
+            toast.error("Failed to load game data");
+            navigate("/join");
+            return;
+          }
+          
+          if (!gameData) {
+            clearTimeout(timeoutId);
+            console.error("Game session not found:", sessionId);
+            toast.error("Game session not found");
+            navigate("/join");
+            return;
+          }
+          
+          // Fetch the quiz info separately
+          const { data: quizData, error: quizError } = await supabase
+            .from('quizzes')
+            .select('id, title, description, creator_id')
+            .eq('id', gameData.quiz_id)
+            .single();
+            
+          if (quizError) {
+            clearTimeout(timeoutId);
+            console.error("Error fetching quiz data:", quizError);
+            toast.error("Failed to load quiz data");
+            navigate("/join");
+            return;
+          }
+          
+          // Combine the data
+          sessionData = {
+            ...gameData,
+            quiz: quizData
+          };
+        }
         
         // Clear the timeout since we received a response
         clearTimeout(timeoutId);
-        
-        if (sessionError) {
-          console.error("Error fetching game session:", sessionError);
-          toast.error("Failed to load game data");
-          navigate("/join");
-          return;
-        }
-        
-        if (!sessionData) {
-          console.error("Game session not found:", sessionId);
-          toast.error("Game session not found");
-          navigate("/join");
-          return;
-        }
         
         console.log("Game session loaded:", sessionData);
         setGameSession(sessionData);

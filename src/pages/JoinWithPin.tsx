@@ -71,24 +71,46 @@ const JoinWithPin = () => {
         console.log("Quiz found:", quizData);
         setQuiz(quizData);
         
-        // Check if there is an active game session for this quiz
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('game_sessions')
-          .select('*')
-          .eq('quiz_id', quizData.id)
-          .eq('status', 'waiting')
-          .order('created_at', { ascending: false })
-          .maybeSingle();
+        // Instead of directly querying game_sessions with filter, use a stored function or a JOIN
+        // This approach avoids the RLS recursion issue
         
-        if (sessionError) {
-          console.error("Error finding game session:", sessionError);
+        // Method 1: Using a custom stored function if available
+        try {
+          // Try to find an active session for this quiz via a custom RPC function
+          const { data: activeSessions, error: rpcError } = await supabase
+            .rpc('get_active_sessions_for_quiz', { p_quiz_id: quizData.id });
+            
+          if (!rpcError && activeSessions && activeSessions.length > 0) {
+            // Use the most recent session
+            const sessionData = activeSessions[0];
+            console.log("Game session found via RPC:", sessionData);
+            setGameSession(sessionData);
+            setIsVerifying(false);
+            return;
+          }
+        } catch (rpcError) {
+          console.error("RPC method failed, trying alternative approach:", rpcError);
+        }
+        
+        // Method 2: Get all sessions and filter client-side
+        const { data: allSessions, error: allSessionsError } = await supabase
+          .from('game_sessions')
+          .select('*');
+        
+        if (allSessionsError) {
+          console.error("Error getting sessions:", allSessionsError);
           setError("Failed to join game");
           toast.error("Failed to join game");
           navigate('/join');
           return;
         }
         
-        if (!sessionData) {
+        // Filter client-side to find waiting sessions for this quiz
+        const waitingSessions = allSessions
+          .filter(session => session.quiz_id === quizData.id && session.status === 'waiting')
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        
+        if (waitingSessions.length === 0) {
           console.error("No active game session found for PIN:", pin);
           setError("No active game session found for this PIN");
           toast.error("No active game session found for this PIN");
@@ -96,7 +118,9 @@ const JoinWithPin = () => {
           return;
         }
         
-        console.log("Game session found:", sessionData);
+        // Use the most recent session
+        const sessionData = waitingSessions[0];
+        console.log("Game session found client-side:", sessionData);
         setGameSession(sessionData);
         setIsVerifying(false);
         
