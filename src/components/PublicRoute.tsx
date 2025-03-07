@@ -3,32 +3,50 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Navigate, useLocation } from "react-router-dom";
 import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 
 interface PublicRouteProps {
   children: React.ReactNode;
 }
 
 const PublicRoute = ({ children }: PublicRouteProps) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refreshUserProfile } = useAuth();
   const location = useLocation();
   const [showLoading, setShowLoading] = useState(false);
+  const [showRetry, setShowRetry] = useState(false);
   
   // Only show loading indicator after a short delay to prevent flashing
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    let loadingTimeout: NodeJS.Timeout;
+    let retryTimeout: NodeJS.Timeout;
     
     if (isLoading) {
-      timeout = setTimeout(() => {
+      // Show loading spinner after 300ms
+      loadingTimeout = setTimeout(() => {
         setShowLoading(true);
       }, 300);
+      
+      // Show retry button after 10 seconds
+      retryTimeout = setTimeout(() => {
+        setShowRetry(true);
+      }, 10000);
     } else {
       setShowLoading(false);
+      setShowRetry(false);
     }
     
     return () => {
-      if (timeout) clearTimeout(timeout);
+      clearTimeout(loadingTimeout);
+      clearTimeout(retryTimeout);
     };
   }, [isLoading]);
+
+  // Handle manual refresh
+  const handleRetry = async () => {
+    setShowRetry(false);
+    await refreshUserProfile();
+  };
 
   // If loading and we've passed the delay threshold, show spinner
   if (isLoading && showLoading) {
@@ -37,6 +55,16 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
         <div className="flex flex-col items-center gap-4">
           <Spinner size="lg" />
           <p className="text-brainblitz-dark-gray">Verifying authentication...</p>
+          
+          {showRetry && (
+            <div className="mt-4">
+              <p className="text-red-500 mb-2">This is taking longer than expected.</p>
+              <Button onClick={handleRetry} className="flex items-center gap-2">
+                <RefreshCw size={16} />
+                Retry
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );
