@@ -23,6 +23,7 @@ export interface Quiz {
   updated_at: string;
   creator?: User;
   question_count?: number;
+  game_count?: number;
 }
 
 export interface Question {
