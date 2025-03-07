@@ -30,7 +30,7 @@ const HeroSection = () => {
         {/* Headline */}
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-6 animate-slide-up">
           <span className="block">Engage. Learn.</span>
-          <span className="block text-gradient">Win.</span>
+          <span className="block text-gradient">Gay.</span>
         </h1>
 
         {/* Subheadline */}
