@@ -26,7 +26,13 @@ port = 54324
 enabled = true
 site_url = "http://localhost:3000"
 # Add additional redirect URLs as needed in a comma-separated list
-additional_redirect_urls = ["https://localhost:3000", "https://f6933d2a-0bc1-47b2-8bc7-bc4eb147977c.lovableproject.com", "https://f6933d2a-0bc1-47b2-8bc7-bc4eb147977c.lovableproject.com/*"]
+additional_redirect_urls = [
+  "https://localhost:3000", 
+  "https://f6933d2a-0bc1-47b2-8bc7-bc4eb147977c.lovableproject.com", 
+  "https://f6933d2a-0bc1-47b2-8bc7-bc4eb147977c.lovableproject.com/*", 
+  "http://localhost:3000/*",
+  "https://f6933d2a-0bc1-47b2-8bc7-bc4eb147977c.lovableproject.com/join/*"
+]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_expiry = 43200

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
@@ -8,6 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Copy, CheckCircle, QrCode, Users, Timer, X } from "lucide-react";
 import { Quiz, Question } from "@/lib/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Spinner } from "@/components/ui/spinner";
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogClose
+} from "@/components/ui/dialog";
 
 const HostGame = () => {
   const { quizId } = useParams<{ quizId: string }>();
@@ -19,7 +29,11 @@ const HostGame = () => {
   const [players, setPlayers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [qrValue, setQrValue] = useState("");
+  const subscriptionRef = useRef<any>(null);
 
   useEffect(() => {
     if (!quizId || !user) return;
@@ -73,23 +87,38 @@ const HostGame = () => {
   }, [quizId, user]);
 
   useEffect(() => {
+    if (quiz?.game_pin) {
+      const baseUrl = window.location.origin;
+      setQrValue(`${baseUrl}/join/${quiz.game_pin}`);
+    }
+  }, [quiz]);
+
+  useEffect(() => {
     if (!quizId || !user) return;
     
     const checkGameSession = async () => {
       try {
+        console.log("Checking for existing game sessions");
         const { data, error } = await supabase
           .from('game_sessions')
           .select('*')
           .eq('quiz_id', quizId)
           .eq('status', 'waiting')
           .order('created_at', { ascending: false })
-          .limit(1);
+          .limit(1)
+          .maybeSingle();
         
-        if (error) throw error;
+        if (error) {
+          console.error("Error checking game session:", error);
+          return;
+        }
         
-        if (data && data.length > 0) {
-          setGameSession(data[0]);
-          subscribeToPlayers(data[0].id);
+        if (data) {
+          console.log("Found existing game session:", data);
+          setGameSession(data);
+          subscribeToPlayers(data.id);
+        } else {
+          console.log("No existing game session found");
         }
       } catch (error) {
         console.error("Error checking game session:", error);
@@ -97,38 +126,59 @@ const HostGame = () => {
     };
     
     checkGameSession();
+
+    return () => {
+      if (subscriptionRef.current) {
+        supabase.removeChannel(subscriptionRef.current);
+      }
+    };
   }, [quizId, user]);
 
   const createGameSession = async () => {
     if (!quizId || !user || !quiz) return;
     
     try {
-      setIsLoading(true);
+      setIsCreatingSession(true);
+      console.log("Creating new game session for quiz:", quizId);
       
       const { data, error } = await supabase
         .from('game_sessions')
         .insert({
           quiz_id: quizId,
           host_id: user.id,
-          status: 'waiting'
+          status: 'waiting',
+          current_question_index: 0
         })
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error creating game session:", error);
+        throw error;
+      }
       
+      console.log("Game session created successfully:", data);
       setGameSession(data);
       subscribeToPlayers(data.id);
       toast.success("Game session created successfully");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating game session:", error);
-      toast.error("Failed to create game session");
+      toast.error("Failed to create game session", {
+        description: error.message || "Please try again"
+      });
     } finally {
-      setIsLoading(false);
+      setIsCreatingSession(false);
     }
   };
 
   const subscribeToPlayers = (sessionId: string) => {
+    console.log("Subscribing to players for session:", sessionId);
+    
+    // Clean up existing subscription if any
+    if (subscriptionRef.current) {
+      supabase.removeChannel(subscriptionRef.current);
+    }
+    
     const subscription = supabase
       .channel(`player_sessions:${sessionId}`)
       .on('postgres_changes', { 
@@ -142,11 +192,8 @@ const HostGame = () => {
       })
       .subscribe();
     
+    subscriptionRef.current = subscription;
     fetchPlayers(sessionId);
-    
-    return () => {
-      supabase.removeChannel(subscription);
-    };
   };
 
   const fetchPlayers = async (sessionId: string) => {
@@ -224,11 +271,19 @@ const HostGame = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const copyJoinLink = () => {
+    if (!quiz?.game_pin) return;
+    
+    const joinUrl = `${window.location.origin}/join/${quiz.game_pin}`;
+    navigator.clipboard.writeText(joinUrl);
+    toast.success("Join link copied to clipboard");
+  };
+
   if (isLoading) {
     return (
       <DashboardLayout>
         <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brainblitz-primary"></div>
+          <Spinner size="lg" />
         </div>
       </DashboardLayout>
     );
@@ -281,9 +336,16 @@ const HostGame = () => {
                   <Button 
                     onClick={createGameSession} 
                     className="w-full sm:w-auto"
-                    disabled={questions.length === 0}
+                    disabled={questions.length === 0 || isCreatingSession}
                   >
-                    Host New Game
+                    {isCreatingSession ? (
+                      <div className="flex items-center">
+                        <Spinner color="white" size="sm" className="mr-2" />
+                        <span>Creating...</span>
+                      </div>
+                    ) : (
+                      "Host New Game"
+                    )}
                   </Button>
                   {questions.length === 0 && (
                     <p className="text-sm text-rose-500">
@@ -315,6 +377,14 @@ const HostGame = () => {
                       </button>
                     </div>
                     <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => setShowQrCode(true)}
+                      title="Show QR Code"
+                    >
+                      <QrCode size={18} />
+                    </Button>
+                    <Button 
                       variant="destructive" 
                       size="icon" 
                       onClick={endGame}
@@ -326,7 +396,7 @@ const HostGame = () => {
               </div>
               
               <div className="p-6 border-b border-gray-200">
-                <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex flex-wrap gap-6 items-center">
                   <div className="flex items-center gap-2 text-brainblitz-dark-gray">
                     <Users size={18} />
                     <span>{players.length} Players</span>
@@ -336,6 +406,11 @@ const HostGame = () => {
                     <Timer size={18} />
                     <span>{questions.length} Questions</span>
                   </div>
+                  
+                  <Button variant="outline" size="sm" onClick={copyJoinLink}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Join Link
+                  </Button>
                 </div>
               </div>
               
@@ -376,10 +451,10 @@ const HostGame = () => {
                     className="w-full sm:w-auto px-8"
                   >
                     {isStarting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white mr-2"></div>
-                        Starting...
-                      </>
+                      <div className="flex items-center">
+                        <Spinner color="white" size="sm" className="mr-2" />
+                        <span>Starting...</span>
+                      </div>
                     ) : (
                       "Start Game"
                     )}
@@ -429,6 +504,33 @@ const HostGame = () => {
           </div>
         </div>
       </div>
+
+      {/* QR Code Dialog */}
+      <Dialog open={showQrCode} onOpenChange={setShowQrCode}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Game QR Code</DialogTitle>
+            <DialogDescription>
+              Scan this code with a mobile device to join the game directly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center p-4">
+            {/* Replace with actual QR code component - we'll use an img with online QR generator */}
+            <img 
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrValue)}`}
+              alt="Game QR Code"
+              className="h-48 w-48 my-4"
+            />
+            <p className="text-center text-sm text-gray-500 mt-2">
+              Direct link: {qrValue}
+            </p>
+            <Button className="mt-4" onClick={copyJoinLink}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copy Link
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

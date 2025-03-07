@@ -17,6 +17,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import CreateQuiz from "./pages/CreateQuiz";
 import Join from "./pages/Join";
+import JoinWithPin from "./pages/JoinWithPin";
 import NotFound from "./pages/NotFound";
 import HostGame from "./pages/HostGame";
 import GamePresentation from "./pages/GamePresentation";
@@ -38,6 +39,7 @@ const App = () => (
             {/* Public routes */}
             <Route path="/" element={<Index />} />
             <Route path="/join" element={<Join />} />
+            <Route path="/join/:gamePin" element={<JoinWithPin />} />
             
             {/* Auth routes - non-authenticated users only */}
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
