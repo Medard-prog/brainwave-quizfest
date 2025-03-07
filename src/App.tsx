@@ -34,27 +34,70 @@ function App() {
         <Route path="/" element={<Index />} />
         <Route path="/join" element={<Join />} />
         <Route path="/join/:pin" element={<JoinWithPin />} />
-        <Route element={<PublicRoute />}>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-        </Route>
+        
+        {/* Auth routes wrapped in PublicRoute */}
+        <Route 
+          path="/login" 
+          element={<PublicRoute><Login /></PublicRoute>} 
+        />
+        <Route 
+          path="/register" 
+          element={<PublicRoute><Register /></PublicRoute>} 
+        />
+        <Route 
+          path="/forgot-password" 
+          element={<PublicRoute><ForgotPassword /></PublicRoute>} 
+        />
+        <Route 
+          path="/reset-password" 
+          element={<PublicRoute><ResetPassword /></PublicRoute>} 
+        />
 
-        {/* Protected routes */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/my-quizzes" element={<MyQuizzesPage />} />
-          <Route path="/create-quiz" element={<CreateQuiz />} />
-          <Route path="/edit-quiz/:quizId" element={<EditQuiz />} />
-          <Route path="/edit-question" element={<EditQuestion />} />
-          <Route path="/host/:quizId" element={<HostGame />} />
-          <Route path="/present/:sessionId" element={<GamePresentation />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/participants" element={<ParticipantsPage />} />
-          <Route path="/logout" element={<Logout />} />
-        </Route>
+        {/* Protected routes wrapped in ProtectedRoute */}
+        <Route 
+          path="/dashboard" 
+          element={<ProtectedRoute><Dashboard /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/my-quizzes" 
+          element={<ProtectedRoute><MyQuizzesPage /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/create-quiz" 
+          element={<ProtectedRoute><CreateQuiz /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/edit-quiz/:quizId" 
+          element={<ProtectedRoute><EditQuiz /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/edit-question" 
+          element={<ProtectedRoute><EditQuestion /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/host/:quizId" 
+          element={<ProtectedRoute><HostGame /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/present/:sessionId" 
+          element={<ProtectedRoute><GamePresentation /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/analytics" 
+          element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/settings" 
+          element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/participants" 
+          element={<ProtectedRoute><ParticipantsPage /></ProtectedRoute>} 
+        />
+        <Route 
+          path="/logout" 
+          element={<ProtectedRoute><Logout /></ProtectedRoute>} 
+        />
 
         {/* 404 route */}
         <Route path="*" element={<NotFound />} />
