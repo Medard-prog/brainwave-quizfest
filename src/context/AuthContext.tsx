@@ -41,7 +41,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profile) {
         console.log("Profile found:", profile.username);
         setUser(profile);
-        return profile;
       } else {
         // If no profile found, try to create a default one
         console.log("No profile found, creating default profile");
@@ -53,17 +52,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (newProfile) {
           console.log("New profile created:", newProfile.username);
           setUser(newProfile);
-          return newProfile;
         } else {
           console.error("Failed to create or fetch user profile");
           setUser(null);
-          return null;
         }
       }
     } catch (error) {
       console.error("Error in refreshUserProfile:", error);
       setUser(null);
-      return null;
     }
   }, [session]);
 
@@ -94,10 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(data.session);
         
         if (data.session?.user) {
-          const profile = await refreshUserProfile();
-          if (!profile) {
-            console.warn("No profile found or created for user:", data.session.user.id);
-          }
+          await refreshUserProfile();
         }
         
         // Clear timeout as we've successfully initialized
@@ -124,10 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           setIsLoading(true);
           if (newSession?.user) {
-            const profile = await refreshUserProfile();
-            if (!profile) {
-              console.warn("No profile found or created on auth state change");
-            }
+            await refreshUserProfile();
           }
           setIsLoading(false);
         } else if (event === 'SIGNED_OUT') {
@@ -220,12 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (data.session?.user) {
         // Refresh user profile after sign in
-        const profile = await refreshUserProfile();
-        if (!profile) {
-          console.warn("No profile found after login for user:", data.session.user.id);
-          // Try again to create profile if it doesn't exist
-          await createDefaultProfile(data.session.user.id, data.session.user.user_metadata);
-        }
+        await refreshUserProfile();
       }
       
       setIsLoading(false);
