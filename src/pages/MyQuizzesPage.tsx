@@ -58,56 +58,38 @@ const MyQuizzesPage = () => {
         // Get all quiz IDs
         const quizIds = quizzesData.map(quiz => quiz.id);
         
-        // Get question count for all quizzes in a single query
-        const { data: questionsCountData, error: questionsCountError } = await supabase
+        // Get question count for all quizzes
+        const questionCountMap: Record<string, number> = {};
+        const { data: questionsData, error: questionsError } = await supabase
           .from('questions')
-          .select('quiz_id, count')
-          .in('quiz_id', quizIds)
-          .select('quiz_id', { count: 'exact', groupBy: 'quiz_id' });
+          .select('quiz_id')
+          .in('quiz_id', quizIds);
         
-        if (questionsCountError) {
-          console.error("Error fetching question counts:", questionsCountError);
-          // We'll continue and just set count to 0
+        if (questionsError) {
+          console.error("Error fetching questions:", questionsError);
+          // Continue anyway, default counts to 0
+        } else if (questionsData) {
+          // Count questions per quiz_id
+          questionsData.forEach(item => {
+            questionCountMap[item.quiz_id] = (questionCountMap[item.quiz_id] || 0) + 1;
+          });
         }
         
-        // Prepare a map of quiz_id -> question_count
-        let questionCountMap: Record<string, number> = {};
-        if (questionsCountData) {
-          questionCountMap = questionsCountData.reduce((acc, curr) => {
-            acc[curr.quiz_id] = parseInt(curr.count);
-            return acc;
-          }, {} as Record<string, number>);
-        }
-        
-        // Get game counts with a separate query
-        const { data: gameSessionsData, error: gameSessionsError } = await supabase
+        // Get game sessions count
+        const gameCountMap: Record<string, number> = {};
+        const { data: gamesData, error: gamesError } = await supabase
           .from('game_sessions')
-          .select('quiz_id, count')
-          .in('quiz_id', quizIds)
-          .select('quiz_id', { count: 'exact', groupBy: 'quiz_id' });
+          .select('quiz_id')
+          .in('quiz_id', quizIds);
         
-        // Prepare a map of quiz_id -> game_count
-        let gameCountMap: Record<string, number> = {};
-        if (gameSessionsData) {
-          gameCountMap = gameSessionsData.reduce((acc, curr) => {
-            acc[curr.quiz_id] = parseInt(curr.count);
-            return acc;
-          }, {} as Record<string, number>);
-        }
-        
-        // Now manually fetch all question counts the old way if needed
-        if (!questionsCountData) {
-          // For each quiz, manually get the question count separately
-          for (const quiz of quizzesData) {
-            const { count, error } = await supabase
-              .from('questions')
-              .select('*', { count: 'exact', head: true })
-              .eq('quiz_id', quiz.id);
-              
-            if (!error) {
-              questionCountMap[quiz.id] = count || 0;
-            }
-          }
+        if (gamesError) {
+          console.error("Error fetching game sessions:", gamesError);
+          // Continue anyway, default counts to 0
+        } else if (gamesData) {
+          // Count game sessions per quiz_id
+          gamesData.forEach(item => {
+            gameCountMap[item.quiz_id] = (gameCountMap[item.quiz_id] || 0) + 1;
+          });
         }
         
         // Add the counts to quizzes
