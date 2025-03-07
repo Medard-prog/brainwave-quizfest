@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -79,6 +78,7 @@ const HostGame = () => {
     
     try {
       setIsCreatingSession(true);
+      console.log("Starting game for quiz:", quiz.id);
       
       // Only generate game pin if it doesn't exist yet
       if (!quiz.game_pin) {
@@ -111,6 +111,8 @@ const HostGame = () => {
           }
         }
         
+        console.log("Generated unique PIN:", pin);
+        
         // Update quiz with the new PIN
         const { error: updateError } = await supabase
           .from('quizzes')
@@ -122,6 +124,8 @@ const HostGame = () => {
           throw updateError;
         }
         
+        console.log("Updated quiz with new PIN");
+        
         // Update local quiz state and join URL
         const baseUrl = window.location.origin;
         const newJoinUrl = `${baseUrl}/join/${pin}`;
@@ -129,16 +133,40 @@ const HostGame = () => {
         setQuiz({ ...quiz, game_pin: pin });
         setJoinUrl(newJoinUrl);
 
-        // Update the local state again to reflect changes
-        const { data: updatedQuiz } = await supabase
+        // Fetch the updated quiz to ensure we have the latest data
+        const { data: updatedQuiz, error: fetchError } = await supabase
           .from('quizzes')
           .select('*')
           .eq('id', quiz.id)
           .single();
           
-        if (updatedQuiz) {
+        if (fetchError) {
+          console.error("Error fetching updated quiz:", fetchError);
+        } else if (updatedQuiz) {
+          console.log("Fetched updated quiz:", updatedQuiz);
           setQuiz(updatedQuiz);
         }
+      }
+      
+      console.log("Creating new game session");
+      
+      // Check if there's already an active session for this quiz
+      const { data: existingSession, error: checkError } = await supabase
+        .from('game_sessions')
+        .select('id')
+        .eq('quiz_id', quiz.id)
+        .eq('status', 'waiting')
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error("Error checking existing sessions:", checkError);
+      }
+      
+      if (existingSession) {
+        console.log("Found existing waiting session:", existingSession.id);
+        // Navigate to the existing session
+        navigate(`/present/${existingSession.id}`);
+        return;
       }
       
       // Create a new game session
@@ -155,8 +183,8 @@ const HostGame = () => {
       
       if (sessionError) {
         console.error("Error creating game session:", sessionError);
-        toast.error("Failed to start the game. Please try again.");
-        throw sessionError;
+        toast.error("Failed to create game session");
+        return;
       }
       
       console.log("Game session created:", sessionData);

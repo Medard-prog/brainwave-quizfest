@@ -21,6 +21,62 @@ const PlayGame = () => {
   const [otherPlayers, setOtherPlayers] = useState<PlayerSession[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   
+  // Fetch the list of other players in this game session
+  const fetchPlayers = async () => {
+    if (!sessionId || !playerSession) return;
+    
+    try {
+      console.log("Fetching players for session:", sessionId);
+      const { data: playersData, error: playersError } = await supabase
+        .from('player_sessions')
+        .select('*')
+        .eq('game_session_id', sessionId);
+      
+      if (playersError) {
+        console.error("Error fetching players:", playersError);
+        return;
+      }
+      
+      if (playersData) {
+        console.log("Players data:", playersData);
+        // Filter out the current player
+        const others = playersData.filter(player => player.id !== playerSession.id);
+        setOtherPlayers(others);
+      }
+    } catch (error) {
+      console.error("Error in fetchPlayers:", error);
+    }
+  };
+  
+  // Fetch the current question based on index
+  const fetchCurrentQuestion = async (questionIndex: number) => {
+    if (!sessionId || !quiz) return;
+    
+    try {
+      console.log("Fetching question at index:", questionIndex);
+      
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('quiz_id', quiz.id)
+        .order('order_num', { ascending: true });
+      
+      if (questionsError) {
+        console.error("Error fetching questions:", questionsError);
+        return;
+      }
+      
+      if (questionsData && questionsData.length > questionIndex) {
+        console.log("Setting current question:", questionsData[questionIndex]);
+        setCurrentQuestion(questionsData[questionIndex]);
+      } else {
+        console.error("Question index out of range:", questionIndex, "total questions:", questionsData?.length);
+      }
+    } catch (error) {
+      console.error("Error in fetchCurrentQuestion:", error);
+    }
+  };
+
   useEffect(() => {
     if (!sessionId) return;
     
@@ -35,6 +91,8 @@ const PlayGame = () => {
         console.log("Initial player name from state:", playerNameData);
         
         if (!playerSessionData) {
+          console.error("No player session data in location state");
+          toast.error("Session data missing. Please rejoin the game.");
           navigate("/join");
           return;
         }
@@ -42,37 +100,102 @@ const PlayGame = () => {
         setPlayerSession(playerSessionData);
         setPlayerName(playerNameData);
         
+        // Add a timeout to prevent infinite loading
+        const timeoutId = setTimeout(() => {
+          console.error("Game session fetch timeout");
+          toast.error("Failed to load game data. Please try again.");
+          navigate("/join");
+        }, 10000); // 10 seconds timeout
+        
+        console.log("Fetching game session:", sessionId);
+        
+        // Fetch the game session
         const { data: sessionData, error: sessionError } = await supabase
           .from('game_sessions')
           .select('*, quiz:quiz_id(*)')
           .eq('id', sessionId)
           .maybeSingle();
         
-        if (sessionError || !sessionData) {
+        // Clear the timeout since we received a response
+        clearTimeout(timeoutId);
+        
+        if (sessionError) {
           console.error("Error fetching game session:", sessionError);
-          toast.error("Game not found or has ended");
+          toast.error("Failed to load game data");
           navigate("/join");
           return;
         }
         
-        console.log("Game session data:", sessionData);
+        if (!sessionData) {
+          console.error("Game session not found:", sessionId);
+          toast.error("Game session not found");
+          navigate("/join");
+          return;
+        }
+        
+        console.log("Game session loaded:", sessionData);
         setGameSession(sessionData);
         setQuiz(sessionData.quiz);
         setGameStatus(sessionData.status);
         
-        const { data: playersData, error: playersError } = await supabase
-          .from('player_sessions')
-          .select('*')
-          .eq('game_session_id', sessionId);
+        // Set up realtime subscription for game updates
+        const gameChannel = supabase
+          .channel(`game_${sessionId}`)
+          .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'game_sessions',
+            filter: `id=eq.${sessionId}`
+          }, (payload) => {
+            console.log("Game session updated:", payload);
+            const updatedSession = payload.new;
+            setGameSession(current => ({
+              ...current,
+              ...updatedSession
+            }));
+            setGameStatus(updatedSession.status);
+            
+            // If there's a current question index change, fetch the question
+            if (updatedSession.current_question_index !== gameSession?.current_question_index) {
+              fetchCurrentQuestion(updatedSession.current_question_index);
+            }
+          })
+          .subscribe((status) => {
+            console.log("Game channel subscription status:", status);
+          });
         
-        if (!playersError && playersData) {
-          const others = playersData.filter(player => player.id !== playerSessionData.id);
-          setOtherPlayers(others);
+        // Set up realtime subscription for player updates
+        const playersChannel = supabase
+          .channel(`players_${sessionId}`)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'player_sessions',
+            filter: `game_session_id=eq.${sessionId}`
+          }, () => {
+            fetchPlayers();
+          })
+          .subscribe((status) => {
+            console.log("Players channel subscription status:", status);
+          });
+        
+        // Fetch initial players
+        fetchPlayers();
+        
+        // If the game is already active, fetch the current question
+        if (sessionData.status === 'active' && sessionData.current_question_index !== null) {
+          fetchCurrentQuestion(sessionData.current_question_index);
         }
         
+        // Cleanup function
+        return () => {
+          supabase.removeChannel(gameChannel);
+          supabase.removeChannel(playersChannel);
+        };
+        
       } catch (error) {
-        console.error("Error initializing game:", error);
-        toast.error("Failed to join game");
+        console.error("Error in initializeGame:", error);
+        toast.error("An error occurred while loading the game");
         navigate("/join");
       } finally {
         setIsLoading(false);
@@ -80,47 +203,7 @@ const PlayGame = () => {
     };
     
     initializeGame();
-    
-    const gameSubscription = supabase
-      .channel('game_changes')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'game_sessions',
-        filter: `id=eq.${sessionId}`,
-      }, (payload) => {
-        console.log("Game session updated:", payload);
-        const updatedSession = payload.new as GameSession;
-        setGameSession(prevSession => ({
-          ...prevSession!,
-          ...updatedSession
-        }));
-        setGameStatus(updatedSession.status);
-      })
-      .subscribe();
-    
-    const playerSubscription = supabase
-      .channel('player_changes')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'player_sessions',
-        filter: `game_session_id=eq.${sessionId}`,
-      }, (payload) => {
-        console.log("New player joined:", payload);
-        const newPlayer = payload.new as PlayerSession;
-        
-        if (newPlayer.id !== playerSession?.id) {
-          setOtherPlayers(prev => [...prev, newPlayer]);
-        }
-      })
-      .subscribe();
-    
-    return () => {
-      gameSubscription.unsubscribe();
-      playerSubscription.unsubscribe();
-    };
-  }, [sessionId, location.state, navigate, playerSession?.id]);
+  }, [sessionId, location, navigate]);
 
   if (isLoading) {
     return (

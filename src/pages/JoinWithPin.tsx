@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -18,13 +17,28 @@ const JoinWithPin = () => {
   const [isVerifying, setIsVerifying] = useState(true);
   const [quiz, setQuiz] = useState<any | null>(null);
   const [gameSession, setGameSession] = useState<any | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   // Verify the PIN on component mount
   useEffect(() => {
-    if (!pin) return;
+    if (!pin) {
+      setIsVerifying(false);
+      setError("No game PIN provided");
+      return;
+    }
     
     const verifyPin = async () => {
       setIsVerifying(true);
+      setError(null);
+      
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.error("PIN verification timeout");
+        setIsVerifying(false);
+        setError("Verification timed out. Please try again.");
+        navigate('/join');
+      }, 10000); // 10 second timeout
+      
       try {
         console.log("Verifying PIN:", pin);
         
@@ -35,8 +49,20 @@ const JoinWithPin = () => {
           .eq('game_pin', pin)
           .maybeSingle();
         
-        if (quizError || !quizData) {
+        // Clear the timeout since we got a response
+        clearTimeout(timeoutId);
+        
+        if (quizError) {
           console.error("Error verifying PIN:", quizError);
+          setError("Failed to verify game PIN");
+          toast.error("Invalid game PIN");
+          navigate('/join');
+          return;
+        }
+        
+        if (!quizData) {
+          console.error("No quiz found with PIN:", pin);
+          setError("Invalid game PIN");
           toast.error("Invalid game PIN");
           navigate('/join');
           return;
@@ -56,12 +82,15 @@ const JoinWithPin = () => {
         
         if (sessionError) {
           console.error("Error finding game session:", sessionError);
+          setError("Failed to join game");
           toast.error("Failed to join game");
           navigate('/join');
           return;
         }
         
         if (!sessionData) {
+          console.error("No active game session found for PIN:", pin);
+          setError("No active game session found for this PIN");
           toast.error("No active game session found for this PIN");
           navigate('/join');
           return;
@@ -69,17 +98,32 @@ const JoinWithPin = () => {
         
         console.log("Game session found:", sessionData);
         setGameSession(sessionData);
+        setIsVerifying(false);
         
       } catch (error) {
+        // Clear the timeout since we got a response (an error)
+        clearTimeout(timeoutId);
         console.error("Error in verifyPin:", error);
+        setError("Failed to verify game PIN");
         toast.error("Failed to verify game PIN");
         navigate('/join');
       } finally {
+        // Set isVerifying to false regardless of outcome
         setIsVerifying(false);
       }
     };
     
     verifyPin();
+    
+    // Cleanup function to clear timeout if component unmounts
+    return () => {
+      // No need to reference the timeoutId from verifyPin as it's not in scope here
+      // Instead we clear all timeouts
+      const id = setTimeout(() => {}, 0);
+      for (let i = 0; i < id; i++) {
+        clearTimeout(i);
+      }
+    };
   }, [pin, navigate]);
   
   const handleJoinGame = async (e: React.FormEvent) => {
@@ -137,6 +181,22 @@ const JoinWithPin = () => {
             <Spinner size="lg" className="mx-auto mb-4" />
             <h2 className="text-xl font-bold mb-2">Verifying Game PIN</h2>
             <p className="text-brainblitz-dark-gray">Please wait while we verify the game PIN...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <div className="max-w-md mx-auto px-4 py-12">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
+            <h2 className="text-xl font-bold mb-2">Error</h2>
+            <p className="text-brainblitz-dark-gray mb-4">{error}</p>
+            <Button onClick={() => navigate('/join')}>
+              Return to Join Page
+            </Button>
           </div>
         </div>
       </MainLayout>
