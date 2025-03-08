@@ -4,18 +4,24 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+<<<<<<< HEAD
+import { Question, GameSession, Quiz, PlayerSession } from "@/lib/types";
+import { Clock, ChevronLeft, ChevronRight, CheckCircle, XCircle, Trophy } from "lucide-react";
+import { usePolling } from "@/utils/polling";
+=======
 import { Question } from "@/lib/types";
 import { Clock, ChevronRight, CheckCircle, Trophy, Users } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+>>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
 
 const GamePresentation = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [gameSession, setGameSession] = useState<any | null>(null);
-  const [quiz, setQuiz] = useState<any | null>(null);
+  const [gameSession, setGameSession] = useState<GameSession | null>(null);
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [players, setPlayers] = useState<any[]>([]);
+  const [players, setPlayers] = useState<PlayerSession[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [showQuestion, setShowQuestion] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -24,9 +30,20 @@ const GamePresentation = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [gameEnded, setGameEnded] = useState(false);
 
+<<<<<<< HEAD
+  // Function to fetch game session data
   const fetchGameData = async () => {
+=======
+  const fetchGameData = async () => {
+>>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
     if (!sessionId || !user) return;
     
+<<<<<<< HEAD
+    try {
+      console.log("Polling: Fetching game session data for host...");
+      
+      // Try RPC function first to avoid RLS issues
+=======
     try {
       const { data: sessionData, error: sessionError } = await supabase
         .from('game_sessions')
@@ -44,7 +61,61 @@ const GamePresentation = () => {
       setQuiz(sessionData.quiz);
       setCurrentQuestionIndex(sessionData.current_question_index || 0);
       
+>>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
       try {
+<<<<<<< HEAD
+        const { data: sessionData, error: rpcError } = await supabase
+          .rpc('get_game_session_details', { session_id: sessionId });
+          
+        if (!rpcError && sessionData && sessionData.length > 0) {
+          console.log("Polling: Game session updated via RPC:", sessionData[0]);
+          
+          // Update current question index if it changed
+          if (gameSession && gameSession.current_question_index !== sessionData[0].current_question_index) {
+            console.log(`Polling: Question index changed from ${gameSession.current_question_index} to ${sessionData[0].current_question_index}`);
+            setCurrentQuestionIndex(sessionData[0].current_question_index || 0);
+          }
+          
+          setGameSession(sessionData[0] as GameSession);
+          
+          // Fetch quiz if we don't have it
+          if (!quiz && sessionData[0].quiz_id) {
+            fetchQuizData(sessionData[0].quiz_id);
+          }
+          
+          return;
+        }
+      } catch (e) {
+        console.error("Polling: RPC fetch failed:", e);
+      }
+      
+      // Fallback to direct query with join
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('game_sessions')
+        .select(`
+          *,
+          quiz:quizzes(*)
+        `)
+        .eq('id', sessionId)
+        .single();
+      
+      if (sessionError) {
+        console.error("Polling: Error fetching game session:", sessionError);
+        return;
+      }
+      
+      if (!sessionData) {
+        console.error("Polling: Game session not found");
+        return;
+      }
+      
+      console.log("Polling: Game session updated:", sessionData);
+      
+      // Update current question index if it changed
+      if (gameSession && gameSession.current_question_index !== sessionData.current_question_index) {
+        console.log(`Polling: Question index changed from ${gameSession.current_question_index} to ${sessionData.current_question_index}`);
+        setCurrentQuestionIndex(sessionData.current_question_index || 0);
+=======
         const { data: questionsData, error: functionError } = await supabase
           .rpc('get_quiz_questions', { quiz_id: sessionData.quiz.id });
           
@@ -65,7 +136,71 @@ const GamePresentation = () => {
         
         if (questionsError) throw questionsError;
         setQuestions(questionsData || []);
+>>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
       }
+<<<<<<< HEAD
+      
+      setGameSession(sessionData as GameSession);
+      setQuiz(sessionData.quiz as Quiz);
+      
+      // Check if game has ended
+      if (sessionData.status === 'completed' && !gameEnded) {
+        setGameEnded(true);
+      }
+    } catch (error) {
+      console.error("Polling: Error in fetchGameData:", error);
+    }
+  };
+  
+  // Function to fetch quiz data if needed
+  const fetchQuizData = async (quizId: string) => {
+    try {
+      console.log("Polling: Fetching quiz data:", quizId);
+      
+      const { data: quizData, error: quizError } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('id', quizId)
+        .single();
+      
+      if (quizError) {
+        console.error("Polling: Error fetching quiz:", quizError);
+        return;
+      }
+      
+      console.log("Polling: Quiz data updated:", quizData);
+      setQuiz(quizData as Quiz);
+      
+      // Also fetch questions for this quiz
+      fetchQuestions(quizId);
+    } catch (error) {
+      console.error("Polling: Error in fetchQuizData:", error);
+    }
+  };
+  
+  // Function to fetch questions
+  const fetchQuestions = async (quizId: string) => {
+    try {
+      console.log("Polling: Fetching questions for quiz:", quizId);
+      
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('quiz_id', quizId)
+        .order('order_num', { ascending: true });
+      
+      if (questionsError) {
+        console.error("Polling: Error fetching questions:", questionsError);
+        return;
+      }
+      
+      console.log("Polling: Questions updated, count:", questionsData?.length);
+      setQuestions(questionsData || []);
+    } catch (error) {
+      console.error("Polling: Error in fetchQuestions:", error);
+    }
+  };
+=======
       
       fetchPlayers();
     } catch (error) {
@@ -86,11 +221,33 @@ const GamePresentation = () => {
     
     return () => clearInterval(pollInterval);
   }, [sessionId, user, navigate]);
+>>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
 
+  // Function to fetch players
   const fetchPlayers = async () => {
     if (!sessionId) return;
     
     try {
+<<<<<<< HEAD
+      console.log("Polling: Fetching players for game session:", sessionId);
+      
+      // Try RPC function first
+      try {
+        const { data: playersData, error: rpcError } = await supabase
+          .rpc('get_player_sessions_for_game', { p_game_session_id: sessionId });
+          
+        if (!rpcError && playersData) {
+          console.log("Polling: Players updated via RPC, count:", playersData.length);
+          setPlayers(playersData);
+          return;
+        }
+      } catch (e) {
+        console.error("Polling: RPC player fetch failed:", e);
+      }
+      
+      // Fallback to direct query
+      const { data: playersData, error: playersError } = await supabase
+=======
       try {
         const { data: playersData, error: rpcError } = await supabase
           .rpc('get_player_sessions_for_game', { p_game_session_id: sessionId });
@@ -105,17 +262,59 @@ const GamePresentation = () => {
       }
       
       const { data, error } = await supabase
+>>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
         .from('player_sessions')
         .select('*')
         .eq('game_session_id', sessionId)
         .order('score', { ascending: false });
       
-      if (error) throw error;
-      setPlayers(data || []);
+      if (playersError) {
+        console.error("Polling: Error fetching players:", playersError);
+        return;
+      }
+      
+      console.log("Polling: Players updated, count:", playersData?.length);
+      setPlayers(playersData || []);
     } catch (error) {
-      console.error("Error fetching players:", error);
+      console.error("Polling: Error in fetchPlayers:", error);
     }
   };
+  
+  // Set up polling for real-time updates
+  const { isPolling, error: pollingError } = usePolling(async () => {
+    await fetchGameData();
+    await fetchPlayers();
+  }, 1000);
+  
+  // Log polling errors
+  useEffect(() => {
+    if (pollingError) {
+      console.error("Polling error:", pollingError);
+    }
+  }, [pollingError]);
+
+  // Initial data loading
+  useEffect(() => {
+    if (!sessionId || !user) return;
+    
+    const initializePresentation = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Initial data loading is handled by the polling hook
+        // Just wait for the first poll to complete
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 1500);
+      } catch (error) {
+        console.error("Error initializing presentation:", error);
+        toast.error("Failed to load game data");
+        navigate('/dashboard');
+      }
+    };
+    
+    initializePresentation();
+  }, [sessionId, user, navigate]);
 
   useEffect(() => {
     if (!timerActive || timeLeft <= 0) return;
