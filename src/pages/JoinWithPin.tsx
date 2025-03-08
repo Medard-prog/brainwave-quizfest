@@ -1,7 +1,9 @@
+
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -83,40 +85,23 @@ const JoinWithPin = () => {
         console.log("Quiz found:", quizData);
         setQuiz(quizData);
         
-        // Step 2: Try the helper RPC function (should work if SQL is deployed)
-        try {
-          const { data: activeSessions, error: rpcError } = await supabase
-            .rpc('get_active_sessions_for_quiz', { p_quiz_id: quizData.id });
-            
-          if (!rpcError && activeSessions && activeSessions.length > 0) {
-            const sessionData = activeSessions[0];
-            console.log("Game session found via RPC:", sessionData);
-            setGameSession(sessionData);
-            setIsVerifying(false);
-            return;
-          } else if (rpcError) {
-            console.error("RPC error:", rpcError);
-          }
-        } catch (rpcError) {
-          console.error("RPC method failed:", rpcError);
-        }
-        
-        // Step 3: Direct, simplified query for status='waiting' sessions
-        // This should work with the simplified RLS policy
-        const { data: waitingSessions, error: waitingError } = await supabase
+        // Step 2: Find active game sessions for this quiz
+        const { data: activeSessions, error: sessionsError } = await supabase
           .from('game_sessions')
           .select('id, quiz_id, host_id, status, current_question_index')
           .eq('quiz_id', quizData.id)
-          .eq('status', 'waiting');
+          .eq('status', 'waiting')
+          .order('created_at', { ascending: false });
         
-        if (waitingError) {
-          console.error("Error getting waiting sessions:", waitingError);
-          // Try more drastic fallback approach if we're still having issues
-          await fetchSessionsFallback(quizData.id);
+        if (sessionsError) {
+          console.error("Error getting active sessions:", sessionsError);
+          setError("Failed to find active game session");
+          toast.error("No active game found for this PIN");
+          navigate('/join');
           return;
         }
         
-        if (!waitingSessions || waitingSessions.length === 0) {
+        if (!activeSessions || activeSessions.length === 0) {
           console.error("No active game session found for PIN:", pin);
           setError("No active game session found for this PIN");
           toast.error("No active game session found for this PIN");
@@ -125,7 +110,7 @@ const JoinWithPin = () => {
         }
         
         // Use the most recent session
-        const sessionData = waitingSessions[0];
+        const sessionData = activeSessions[0];
         console.log("Game session found:", sessionData);
         setGameSession(sessionData);
         setIsVerifying(false);
@@ -143,47 +128,11 @@ const JoinWithPin = () => {
       }
     };
     
-    // Last resort fallback if all other methods fail
-    const fetchSessionsFallback = async (quizId: string) => {
-      try {
-        console.log("Attempting fallback session fetch for quiz:", quizId);
-        
-        // Make request to a special endpoint or server-side function
-        // that can bypass Supabase RLS policies
-        
-        // For demo purposes, we'll simulate finding a session:
-        const mockSession = {
-          id: crypto.randomUUID(),
-          quiz_id: quizId,
-          host_id: "unknown",
-          status: "waiting",
-          current_question_index: 0
-        };
-        
-        setGameSession(mockSession);
-        setIsVerifying(false);
-        
-        // In a real implementation, you'd want to:
-        // 1. Have a serverless function/API endpoint that doesn't use RLS
-        // 2. Or use database webhooks to populate a cache that's queryable
-        
-      } catch (fallbackError) {
-        console.error("Fallback session fetch failed:", fallbackError);
-        setError("Could not find an active game session");
-        toast.error("Could not find an active game session");
-        navigate('/join');
-      }
-    };
-    
     verifyPin();
     
     // Cleanup function to clear timeout if component unmounts
     return () => {
-      // Clear any timeouts that might be running
-      const highestId = window.setTimeout(() => {}, 0);
-      for (let i = 0; i < highestId; i++) {
-        window.clearTimeout(i);
-      }
+      clearTimeout(timeoutId);
     };
   }, [pin, navigate]);
   
@@ -198,36 +147,7 @@ const JoinWithPin = () => {
     try {
       setIsLoading(true);
       
-      // Method 1: Try to use the custom RPC function to create player session
-      try {
-        const { data: playerData, error: rpcError } = await supabase
-          .rpc('create_player_session', {
-            p_game_session_id: gameSession.id,
-            p_player_name: playerName.trim(),
-            p_player_id: null // Anonymous player
-          });
-          
-        if (!rpcError && playerData) {
-          console.log("Player session created via RPC:", playerData);
-          
-          // Navigate to game page
-          navigate(`/play/${gameSession.id}`, {
-            state: {
-              playerSession: playerData,
-              playerName: playerName.trim()
-            }
-          });
-          return;
-        } else if (rpcError) {
-          console.error("Error creating player session via RPC:", rpcError);
-          // Continue to fallback method if RPC fails
-        }
-      } catch (rpcError) {
-        console.error("RPC create_player_session failed:", rpcError);
-        // Continue to fallback method
-      }
-      
-      // Method 2: Fallback to direct insert with minimal fields
+      // Create a player session
       const { data: playerData, error: playerError } = await supabase
         .from('player_sessions')
         .insert({
@@ -266,11 +186,11 @@ const JoinWithPin = () => {
   if (isVerifying) {
     return (
       <MainLayout>
-        <div className="max-w-md mx-auto px-4 py-12">
-          <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-            <Spinner size="lg" className="mx-auto mb-4" />
-            <h2 className="text-xl font-bold mb-2">Verifying Game PIN</h2>
-            <p className="text-brainblitz-dark-gray">Please wait while we verify the game PIN...</p>
+        <div className="min-h-[calc(100vh-64px)] flex items-center justify-center py-12 px-4">
+          <div className="w-full max-w-md bg-white rounded-xl border border-gray-200 p-8 text-center shadow-sm">
+            <Spinner size="lg" className="mx-auto mb-6" />
+            <h2 className="text-2xl font-bold mb-2">Verifying Game PIN</h2>
+            <p className="text-brainblitz-dark-gray">Please wait while we connect you to the game...</p>
           </div>
         </div>
       </MainLayout>
@@ -280,11 +200,28 @@ const JoinWithPin = () => {
   if (error) {
     return (
       <MainLayout>
-        <div className="max-w-md mx-auto px-4 py-12">
-          <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-            <h2 className="text-xl font-bold mb-2">Error</h2>
-            <p className="text-brainblitz-dark-gray mb-4">{error}</p>
-            <Button onClick={() => navigate('/join')}>
+        <div className="min-h-[calc(100vh-64px)] flex items-center justify-center py-12 px-4">
+          <div className="w-full max-w-md bg-white rounded-xl border border-gray-200 p-8 text-center shadow-sm">
+            <div className="text-red-500 mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-12 w-12 mx-auto"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Error</h2>
+            <p className="text-brainblitz-dark-gray mb-6">{error}</p>
+            <Button onClick={() => navigate('/join')} className="w-full">
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Return to Join Page
             </Button>
           </div>
@@ -295,49 +232,70 @@ const JoinWithPin = () => {
 
   return (
     <MainLayout>
-      <div className="max-w-md mx-auto px-4 py-12">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-xl font-bold mb-6">Join Game</h2>
-          
-          {quiz && (
-            <div className="mb-6">
-              <p className="text-sm text-brainblitz-dark-gray mb-1">You're joining:</p>
-              <div className="font-semibold text-lg">{quiz.title}</div>
-              {quiz.description && (
-                <p className="text-brainblitz-dark-gray mt-1 text-sm">{quiz.description}</p>
-              )}
-            </div>
-          )}
-          
-          <form onSubmit={handleJoinGame}>
-            <div className="mb-6">
-              <Label htmlFor="player-name">Your Name</Label>
-              <Input
-                id="player-name"
-                type="text"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="Enter your name"
-                className="mt-1"
-                required
-              />
-            </div>
-            
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading || !playerName.trim()}
+      <div className="min-h-[calc(100vh-64px)] flex items-center justify-center py-12 px-4">
+        <div className="w-full max-w-md">
+          <div className="mb-4">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-brainblitz-dark-gray"
+              onClick={() => navigate('/join')}
             >
-              {isLoading ? (
-                <>
-                  <Spinner size="sm" className="mr-2" />
-                  Joining...
-                </>
-              ) : (
-                "Join Game"
-              )}
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Join
             </Button>
-          </form>
+          </div>
+          
+          <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">
+            <h2 className="text-2xl font-bold mb-6">Join Game</h2>
+            
+            {quiz && (
+              <div className="mb-8">
+                <div className="bg-brainblitz-primary/10 rounded-lg p-4">
+                  <div className="font-semibold text-brainblitz-primary text-sm mb-1">QUIZ</div>
+                  <div className="font-bold text-xl">{quiz.title}</div>
+                  {quiz.description && (
+                    <p className="text-brainblitz-dark-gray mt-2 text-sm">{quiz.description}</p>
+                  )}
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-xs font-medium text-brainblitz-dark-gray">Game PIN</span>
+                    <span className="text-xl font-bold tracking-widest text-brainblitz-primary">{quiz.game_pin}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <form onSubmit={handleJoinGame}>
+              <div className="mb-6">
+                <Label htmlFor="player-name" className="text-base">Your Name</Label>
+                <Input
+                  id="player-name"
+                  type="text"
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  placeholder="Enter your name"
+                  className="mt-2 py-6 text-lg"
+                  required
+                  autoFocus
+                />
+              </div>
+              
+              <Button
+                type="submit"
+                className="w-full bg-brainblitz-primary hover:bg-brainblitz-primary/90 py-6 text-lg"
+                disabled={isLoading || !playerName.trim()}
+              >
+                {isLoading ? (
+                  <>
+                    <Spinner size="sm" color="white" className="mr-2" />
+                    Joining...
+                  </>
+                ) : (
+                  "Join Game"
+                )}
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
     </MainLayout>
