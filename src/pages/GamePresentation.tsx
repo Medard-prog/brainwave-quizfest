@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Question, GameSession, Quiz, PlayerSession } from "@/lib/types";
 import { Clock, ChevronLeft, ChevronRight, CheckCircle, XCircle, Trophy, Settings } from "lucide-react";
 import { usePolling } from "@/utils/polling";
@@ -56,6 +57,18 @@ const GamePresentation = () => {
           
         if (!rpcError && sessionData && sessionData.length > 0) {
           console.log("Polling: Game session updated via RPC:", sessionData[0]);
+          
+          if (gameSession && gameSession.status !== sessionData[0].status) {
+            console.log(`Polling: Game status changed from ${gameSession.status} to ${sessionData[0].status}`);
+            
+            if (sessionData[0].status === 'active' && !gameStarted) {
+              console.log("Polling: Game is now active, updating gameStarted state");
+              setGameStarted(true);
+            } else if (sessionData[0].status === 'completed' && !gameEnded) {
+              console.log("Polling: Game is now completed, updating gameEnded state");
+              setGameEnded(true);
+            }
+          }
           
           if (gameSession && gameSession.current_question_index !== sessionData[0].current_question_index) {
             console.log(`Polling: Question index changed from ${gameSession.current_question_index} to ${sessionData[0].current_question_index}`);
@@ -147,10 +160,17 @@ const GamePresentation = () => {
       
       if (questionsError) {
         console.error("Polling: Error fetching questions:", questionsError);
+        toast.error("Failed to load questions");
         return;
       }
       
       console.log("Polling: Questions updated, count:", questionsData?.length);
+      
+      if (!questionsData || questionsData.length === 0) {
+        console.warn("No questions found for this quiz");
+        toast.warning("This quiz has no questions. Add questions before starting a game.");
+      }
+      
       setQuestions(questionsData || []);
     } catch (error) {
       console.error("Polling: Error in fetchQuestions:", error);
@@ -274,23 +294,97 @@ const GamePresentation = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players, currentQuestionIndex, questions, gameSession, showQuestion, showAnswer, autoAdvance, autoAdvanceDelay]);
 
+  const startGame = async () => {
+    if (!sessionId || !user || questions.length === 0) {
+      console.log("Cannot start game: missing sessionId, user, or questions");
+      return;
+    }
+    
+    try {
+      console.log("Starting game for session:", sessionId);
+      setIsStarting(true);
+      
+      // Update the game session status to 'active'
+      const { error } = await supabase
+        .from('game_sessions')
+        .update({ 
+          status: 'active',
+          started_at: new Date().toISOString(),
+          current_question_index: 0
+        })
+        .eq('id', sessionId);
+      
+      if (error) {
+        console.error("Error starting game:", error);
+        toast.error("Failed to start game");
+        setIsStarting(false);
+        return;
+      }
+      
+      // Update local state
+      setGameStarted(true);
+      setCurrentQuestionIndex(0);
+      
+      console.log("Game started successfully");
+      toast.success("Game started successfully");
+      
+      // Show the first question
+      showFirstQuestion();
+    } catch (error) {
+      console.error("Error in startGame:", error);
+      toast.error("Failed to start game");
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const showFirstQuestion = () => {
+    if (questions.length === 0) {
+      console.error("No questions available");
+      return;
+    }
+    
+    console.log("Showing first question");
+    // Reset states for new question
+    setShowQuestion(false);
+    setShowAnswer(false);
+    setCurrentQuestionIndex(0);
+    
+    // Start the question after a short delay
+    setTimeout(() => {
+      startQuestion();
+    }, 1000);
+  };
+
   const startQuestion = async () => {
-    if (!questions[currentQuestionIndex]) return;
+    console.log("Starting question", currentQuestionIndex);
+    if (!questions[currentQuestionIndex]) {
+      console.error("Invalid question index:", currentQuestionIndex);
+      return;
+    }
     
     setShowQuestion(true);
     setShowAnswer(false);
     
     const question = questions[currentQuestionIndex];
     if (question.time_limit) {
+      console.log("Setting timer for", question.time_limit, "seconds");
       setTimeLeft(question.time_limit);
       setTimerActive(true);
     }
     
     try {
-      await supabase
+      console.log("Updating current question index in database to", currentQuestionIndex);
+      const { error } = await supabase
         .from('game_sessions')
         .update({ current_question_index: currentQuestionIndex })
         .eq('id', sessionId);
+        
+      if (error) {
+        console.error("Error updating current question:", error);
+      } else {
+        console.log("Current question index updated successfully");
+      }
     } catch (error) {
       console.error("Error updating current question:", error);
     }
@@ -309,23 +403,46 @@ const GamePresentation = () => {
 
   const endGame = async () => {
     try {
+      console.log("Ending game for session:", sessionId);
+      setIsEnding(true);
+      
       const { error } = await supabase
         .from('game_sessions')
         .update({
-          status: 'ended',
+          status: 'completed',
           ended_at: new Date().toISOString()
         })
         .eq('id', sessionId);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error ending game:", error);
+        toast.error("Failed to end game");
+        setIsEnding(false);
+        return;
+      }
       
+      setGameEnded(true);
+      console.log("Game ended successfully");
       toast.success("Game ended successfully");
-      navigate('/dashboard');
     } catch (error) {
-      console.error("Error ending game:", error);
-      toast.error("Failed to end the game");
+      console.error("Error in endGame:", error);
+      toast.error("Failed to end game");
+    } finally {
+      setIsEnding(false);
     }
   };
+
+  useEffect(() => {
+    console.log("Current game state:", { 
+      gameStarted, 
+      gameEnded, 
+      questionsCount: questions.length,
+      playersCount: players.length,
+      currentQuestionIndex,
+      showQuestion,
+      showAnswer
+    });
+  }, [gameStarted, gameEnded, questions.length, players.length, currentQuestionIndex, showQuestion, showAnswer]);
 
   if (isLoading) {
     return (
@@ -452,26 +569,39 @@ const GamePresentation = () => {
           <div className="flex items-center">
             <span className="text-sm font-medium mr-4">PIN: <span className="font-bold text-brainblitz-primary">{quiz?.game_pin}</span></span>
             <span className="text-sm font-medium mr-4">Players: <span className="font-bold">{players.length}</span></span>
-            {!gameStarted ? (
+            
+            {gameEnded ? (
+              <Button onClick={() => navigate('/dashboard')}>
+                Back to Dashboard
+              </Button>
+            ) : !gameStarted ? (
               <Button 
-                onClick={startQuestion}
+                onClick={startGame}
                 disabled={questions.length === 0 || isStarting}
               >
                 {isStarting ? (
-                  <span>Starting...</span>
+                  <>
+                    <Spinner size="sm" className="mr-2" />
+                    Starting...
+                  </>
                 ) : (
                   <span>Start Game</span>
                 )}
               </Button>
-            ) : gameEnded ? (
-              <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
             ) : (
               <Button 
                 variant="destructive" 
                 onClick={endGame}
                 disabled={isEnding}
               >
-                {isEnding ? "Ending..." : "End Game"}
+                {isEnding ? (
+                  <>
+                    <Spinner size="sm" className="mr-2" />
+                    Ending...
+                  </>
+                ) : (
+                  <span>End Game</span>
+                )}
               </Button>
             )}
           </div>
@@ -503,6 +633,25 @@ const GamePresentation = () => {
                 <p className="text-center text-gray-500 py-8">No players have joined yet</p>
               )}
             </div>
+            
+            {/* No questions warning */}
+            {questions.length === 0 && (
+              <div className="md:col-span-2 bg-amber-50 rounded-xl shadow-md p-6 mt-4 border border-amber-200">
+                <div className="flex flex-col items-center text-center">
+                  <h3 className="text-xl font-bold text-amber-700 mb-2">No Questions Available</h3>
+                  <p className="text-amber-700 mb-4">
+                    This quiz doesn't have any questions yet. You need to add questions before you can start a game.
+                  </p>
+                  <Button
+                    onClick={() => navigate(`/edit-quiz/${quiz?.id}`)}
+                    variant="outline"
+                    className="bg-white border-amber-500 hover:bg-amber-100 text-amber-700"
+                  >
+                    Add Questions to Quiz
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ) : gameEnded ? (
           <div className="bg-white rounded-xl shadow-md p-6 text-center">

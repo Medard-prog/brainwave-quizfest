@@ -9,6 +9,15 @@ import { GameSession, PlayerSession, Quiz, Question } from "@/lib/types";
 import { usePolling } from "@/utils/polling";
 import { CheckCircle, Clock } from "lucide-react";
 
+// Define interface for player answers
+interface PlayerAnswer {
+  question_id: string;
+  answer: string;
+  correct: boolean;
+  question_index: number;
+  timestamp: string;
+}
+
 const PlayGame = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const location = useLocation();
@@ -338,7 +347,7 @@ const PlayGame = () => {
       const currentQuestionIndex = gameSession.current_question_index;
       const allAnswered = playersData.every(player => {
         const answers = player.answers || [];
-        return answers.some((answer: any) => 
+        return answers.some((answer: PlayerAnswer) => 
           answer.question_index === currentQuestionIndex || 
           answer.question_id === currentQuestion.id
         );
