@@ -45,8 +45,8 @@ const JoinWithPin = () => {
       setIsVerifying(true);
       setError(null);
       
-      // Declare timeoutId variable here
-      let timeoutId: NodeJS.Timeout;
+      // Declare timeoutId variable with proper typing
+      let timeoutId: NodeJS.Timeout | undefined;
       
       // Add timeout to prevent infinite loading
       timeoutId = setTimeout(() => {
@@ -67,7 +67,9 @@ const JoinWithPin = () => {
           .maybeSingle();
         
         // Clear the timeout since we got a response
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
         
         if (quizError) {
           console.error("Error verifying PIN:", quizError);
@@ -120,7 +122,9 @@ const JoinWithPin = () => {
         
       } catch (error) {
         // Clear the timeout since we got a response (an error)
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
         console.error("Error in verifyPin:", error);
         setError("Failed to verify game PIN");
         toast.error("Failed to verify game PIN");
@@ -135,10 +139,8 @@ const JoinWithPin = () => {
     
     // Cleanup function to clear timeout if component unmounts
     return () => {
-      // Need to check if timeoutId exists before clearing
-      if (typeof timeoutId !== 'undefined') {
-        clearTimeout(timeoutId);
-      }
+      // No need to check if timeoutId exists since it's defined in the parent scope
+      // and will be undefined if not set
     };
   }, [pin, navigate]);
   
