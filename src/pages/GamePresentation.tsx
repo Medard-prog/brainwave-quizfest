@@ -6,10 +6,21 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Question, GameSession, Quiz, PlayerSession } from "@/lib/types";
-import { Clock, ChevronLeft, ChevronRight, CheckCircle, XCircle, Trophy, Settings } from "lucide-react";
+import { 
+  Clock, 
+  ChevronRight, 
+  CheckCircle, 
+  XCircle, 
+  Trophy, 
+  Users, 
+  Settings,
+  RefreshCw
+} from "lucide-react";
 import { usePolling } from "@/utils/polling";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 interface GameOption {
   id: string;
@@ -44,6 +55,7 @@ const GamePresentation = () => {
   const [gameStarted, setGameStarted] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchGameData = async () => {
     if (!sessionId || !user) return;
@@ -211,6 +223,22 @@ const GamePresentation = () => {
       setPlayers(playersData || []);
     } catch (error) {
       console.error("Polling: Error in fetchPlayers:", error);
+    }
+  };
+  
+  const refreshData = async () => {
+    if (refreshing) return;
+    
+    setRefreshing(true);
+    try {
+      await fetchGameData();
+      await fetchPlayers();
+      toast.success("Game data refreshed");
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+      toast.error("Failed to refresh data");
+    } finally {
+      setRefreshing(false);
     }
   };
   
@@ -446,27 +474,40 @@ const GamePresentation = () => {
 
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brainblitz-primary"></div>
+      <div className="h-screen flex items-center justify-center bg-gradient-to-b from-white to-gray-50">
+        <div className="text-center">
+          <Spinner size="lg" className="mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Loading Game</h2>
+          <p className="text-brainblitz-dark-gray">Preparing your game session...</p>
+        </div>
       </div>
     );
   }
 
   if (!gameSession || !quiz || questions.length === 0) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center p-8">
-          <h1 className="text-2xl font-bold mb-4">Game not found</h1>
-          <p className="mb-6">The game you're looking for doesn't exist or has ended.</p>
-          <Button asChild>
-            <a href="/dashboard">Back to Dashboard</a>
-          </Button>
+      <div className="h-screen flex items-center justify-center bg-gradient-to-b from-white to-gray-50">
+        <div className="text-center p-8 max-w-md">
+          <div className="bg-white rounded-xl shadow-md p-8">
+            <h1 className="text-2xl font-bold mb-4">Game not found</h1>
+            <p className="mb-6 text-brainblitz-dark-gray">The game you're looking for doesn't exist or has ended.</p>
+            <Button asChild className="w-full">
+              <a href="/dashboard">Back to Dashboard</a>
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
 
   const currentQuestion = questions[currentQuestionIndex];
+  
+  const getAnswerTextFromId = (id: string | null) => {
+    if (!id || !currentQuestion || !currentQuestion.options) return "";
+    
+    const option = currentQuestion.options.find(opt => opt.id === id);
+    return option ? option.text : id;
+  };
 
   const renderSettings = () => (
     <div className="bg-white rounded-xl shadow-md p-6 mb-6">
@@ -547,28 +588,40 @@ const GamePresentation = () => {
           <span className="font-medium text-sm">Players answered</span>
           <span className="font-bold text-sm">{answered}/{total}</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-          <div 
-            className="bg-brainblitz-primary h-2.5 rounded-full transition-all duration-500" 
-            style={{ width: `${percentage}%` }}
-          ></div>
-        </div>
+        <Progress value={percentage} className="h-2" />
       </div>
     );
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
+    <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+      <header className="bg-white shadow-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center">
-            <h1 className="text-xl font-bold text-gray-900 truncate max-w-md">
+            <h1 className="text-xl font-bold text-gray-900 truncate max-w-xs sm:max-w-md">
               {quiz?.title || "Game"}
             </h1>
+            {quiz?.game_pin && (
+              <Badge className="ml-3 bg-brainblitz-primary hover:bg-brainblitz-primary">
+                PIN: {quiz.game_pin}
+              </Badge>
+            )}
           </div>
-          <div className="flex items-center">
-            <span className="text-sm font-medium mr-4">PIN: <span className="font-bold text-brainblitz-primary">{quiz?.game_pin}</span></span>
-            <span className="text-sm font-medium mr-4">Players: <span className="font-bold">{players.length}</span></span>
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <Badge variant="outline" className="hidden sm:flex">
+              <Users className="h-3.5 w-3.5 mr-1" />
+              <span>{players.length} Players</span>
+            </Badge>
+            
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={refreshData} 
+              disabled={refreshing}
+              className="hidden sm:flex"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
             
             {gameEnded ? (
               <Button onClick={() => navigate('/dashboard')}>
@@ -611,7 +664,7 @@ const GamePresentation = () => {
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brainblitz-primary"></div>
+            <Spinner size="lg" />
           </div>
         ) : !gameStarted ? (
           <div className="grid md:grid-cols-2 gap-6">
@@ -619,18 +672,35 @@ const GamePresentation = () => {
             {renderSettings()}
             
             <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-xl font-bold mb-4">Players</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Players</h2>
+                <Badge className="bg-brainblitz-primary hover:bg-brainblitz-primary">
+                  {players.length}
+                </Badge>
+              </div>
+              
               {players.length > 0 ? (
-                <ul className="divide-y divide-gray-200">
+                <div className="divide-y divide-gray-100">
                   {players.map((player) => (
-                    <li key={player.id} className="py-3 flex justify-between items-center">
-                      <span className="font-medium">{player.player_name}</span>
-                      <span className="text-sm bg-gray-100 px-2 py-1 rounded">Score: {player.score || 0}</span>
-                    </li>
+                    <div key={player.id} className="py-3 flex justify-between items-center">
+                      <div className="flex items-center">
+                        <div className="h-8 w-8 rounded-full bg-brainblitz-primary/10 flex items-center justify-center mr-3">
+                          <span className="font-medium text-brainblitz-primary">{player.player_name.charAt(0)}</span>
+                        </div>
+                        <span className="font-medium">{player.player_name}</span>
+                      </div>
+                      <Badge variant="outline" className="font-semibold">
+                        {player.score || 0}
+                      </Badge>
+                    </div>
                   ))}
-                </ul>
+                </div>
               ) : (
-                <p className="text-center text-gray-500 py-8">No players have joined yet</p>
+                <div className="text-center p-8 border border-dashed border-gray-200 rounded-lg">
+                  <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-brainblitz-dark-gray">No players have joined yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Share the PIN with your players</p>
+                </div>
               )}
             </div>
             
@@ -654,43 +724,107 @@ const GamePresentation = () => {
             )}
           </div>
         ) : gameEnded ? (
-          <div className="bg-white rounded-xl shadow-md p-6 text-center">
-            <h2 className="text-2xl font-bold mb-6">Game Results</h2>
+          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div className="bg-gradient-to-r from-brainblitz-primary to-indigo-600 p-6 sm:p-8 text-white text-center">
+              <Trophy className="mx-auto h-16 w-16 mb-4" />
+              <h2 className="text-2xl sm:text-3xl font-bold mb-2">Game Results</h2>
+              <p className="text-white/80">Congratulations to all participants!</p>
+            </div>
             
             {players.length > 0 ? (
-              <div>
-                <h3 className="text-xl font-semibold mb-4">Final Scores</h3>
-                <div className="max-w-md mx-auto">
-                  <div className="space-y-4">
-                    {players
-                      .sort((a, b) => (b.score || 0) - (a.score || 0))
-                      .map((player, index) => (
+              <div className="p-6">
+                <h3 className="text-xl font-semibold mb-6 text-center">Final Scores</h3>
+                
+                {/* Podium for top 3 */}
+                {players.length >= 2 && (
+                  <div className="flex flex-wrap justify-center items-end gap-4 mb-10">
+                    {/* 2nd Place */}
+                    {players.length > 1 && (
+                      <div className="order-1 text-center">
+                        <div className="h-16 w-28 bg-gray-200 rounded-t-lg mb-2"></div>
+                        <div className="h-14 w-14 bg-gray-100 rounded-full border-4 border-gray-300 flex items-center justify-center mx-auto mb-1">
+                          <span className="text-xl font-bold">{players[1]?.player_name?.charAt(0)}</span>
+                        </div>
+                        <p className="font-bold">{players[1]?.player_name}</p>
+                        <p className="text-xl font-bold text-gray-600">{players[1]?.score || 0}</p>
+                        <Badge className="mt-1 bg-gray-500 hover:bg-gray-500">2nd Place</Badge>
+                      </div>
+                    )}
+                    
+                    {/* 1st Place */}
+                    <div className="order-2 text-center scale-110 pb-2">
+                      <div className="h-24 w-32 bg-yellow-200 rounded-t-lg mb-2"></div>
+                      <div className="h-16 w-16 bg-yellow-100 rounded-full border-4 border-yellow-400 flex items-center justify-center mx-auto mb-1">
+                        <span className="text-2xl font-bold">{players[0]?.player_name?.charAt(0)}</span>
+                      </div>
+                      <p className="font-bold">{players[0]?.player_name}</p>
+                      <p className="text-2xl font-bold text-brainblitz-primary">{players[0]?.score || 0}</p>
+                      <Badge className="mt-1 bg-yellow-500 hover:bg-yellow-500">1st Place</Badge>
+                    </div>
+                    
+                    {/* 3rd Place */}
+                    {players.length > 2 && (
+                      <div className="order-3 text-center">
+                        <div className="h-12 w-28 bg-amber-100 rounded-t-lg mb-2"></div>
+                        <div className="h-14 w-14 bg-amber-50 rounded-full border-4 border-amber-200 flex items-center justify-center mx-auto mb-1">
+                          <span className="text-xl font-bold">{players[2]?.player_name?.charAt(0)}</span>
+                        </div>
+                        <p className="font-bold">{players[2]?.player_name}</p>
+                        <p className="text-xl font-bold text-gray-600">{players[2]?.score || 0}</p>
+                        <Badge className="mt-1 bg-amber-600 hover:bg-amber-600">3rd Place</Badge>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Other players */}
+                {players.length > 3 && (
+                  <div className="mt-8 max-w-xl mx-auto">
+                    <h4 className="text-lg font-medium mb-3 text-brainblitz-dark-gray">Other Players</h4>
+                    <div className="space-y-2">
+                      {players.slice(3).map((player, index) => (
                         <div 
                           key={player.id} 
-                          className={`flex justify-between items-center p-3 rounded-lg ${
-                            index === 0 ? 'bg-yellow-100 border border-yellow-300' : 'bg-gray-50'
-                          }`}
+                          className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
                         >
                           <div className="flex items-center">
-                            <span className="font-bold w-8">{index + 1}.</span>
+                            <span className="w-6 text-brainblitz-dark-gray">{index + 4}.</span>
                             <span className="font-medium">{player.player_name}</span>
                           </div>
-                          <span className="font-bold">{player.score || 0} pts</span>
+                          <Badge variant="outline" className="font-semibold">
+                            {player.score || 0}
+                          </Badge>
                         </div>
-                      ))
-                    }
+                      ))}
+                    </div>
                   </div>
+                )}
+                
+                <div className="mt-10 text-center">
+                  <Button onClick={() => navigate('/dashboard')} size="lg">
+                    Back to Dashboard
+                  </Button>
                 </div>
               </div>
             ) : (
-              <p className="text-gray-500">No players joined this game</p>
+              <div className="p-6 text-center">
+                <p className="text-gray-500">No players joined this game</p>
+                <Button onClick={() => navigate('/dashboard')} className="mt-4">
+                  Back to Dashboard
+                </Button>
+              </div>
             )}
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1">
               <div className="bg-white rounded-xl shadow-md p-6">
-                <h2 className="text-xl font-bold mb-4">Players</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">Players</h2>
+                  <Badge className="bg-brainblitz-primary hover:bg-brainblitz-primary">
+                    {players.length}
+                  </Badge>
+                </div>
                 
                 {/* Player Progress */}
                 {renderPlayerProgress()}
@@ -703,10 +837,15 @@ const GamePresentation = () => {
                         key={player.id} 
                         className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
                       >
-                        <span className="font-medium">{player.player_name}</span>
-                        <span className="bg-brainblitz-primary text-white px-2 py-1 rounded-md">
+                        <div className="flex items-center">
+                          <div className="h-8 w-8 rounded-full bg-brainblitz-primary/10 flex items-center justify-center mr-2">
+                            <span className="font-medium text-brainblitz-primary">{player.player_name.charAt(0)}</span>
+                          </div>
+                          <span className="font-medium">{player.player_name}</span>
+                        </div>
+                        <Badge className="bg-brainblitz-primary hover:bg-brainblitz-primary">
                           {player.score || 0}
-                        </span>
+                        </Badge>
                       </div>
                     ))
                   }
@@ -718,45 +857,56 @@ const GamePresentation = () => {
               {currentQuestion ? (
                 <div>
                   <div className="bg-white rounded-xl shadow-md p-6 mb-4">
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
                       <div>
-                        <span className="text-sm font-medium text-brainblitz-dark-gray">Question {currentQuestionIndex + 1} of {questions.length}</span>
-                        <h3 className="text-xl font-bold mt-1">
+                        <Badge variant="outline" className="mb-2">
+                          Question {currentQuestionIndex + 1} of {questions.length}
+                        </Badge>
+                        <h3 className="text-xl sm:text-2xl font-bold">
                           {showQuestion ? currentQuestion.question_text : "Ready to reveal question?"}
                         </h3>
                       </div>
                       
-                      {showQuestion && !showAnswer && (
-                        <Button 
-                          onClick={() => setShowAnswer(true)}
-                          variant="outline"
-                        >
-                          Show Answer
-                        </Button>
-                      )}
-                      
-                      {!showQuestion ? (
-                        <Button onClick={() => setShowQuestion(true)}>
-                          Show Question
-                        </Button>
-                      ) : showAnswer && (
-                        <Button
-                          onClick={nextQuestion}
-                          className="ml-auto"
-                        >
-                          {currentQuestionIndex < questions.length - 1 ? (
-                            <>
-                              Next Question
-                              <ChevronRight className="ml-1" size={18} />
-                            </>
-                          ) : (
-                            <>
-                              View Results
-                              <Trophy className="ml-1" size={18} />
-                            </>
-                          )}
-                        </Button>
-                      )}
+                      <div className="mt-4 sm:mt-0 flex space-x-3 self-end sm:self-auto">
+                        {timerActive && timeLeft > 0 && (
+                          <Badge variant="outline" className="flex items-center gap-1 text-base">
+                            <Clock size={14} />
+                            {timeLeft}s
+                          </Badge>
+                        )}
+                        
+                        {showQuestion && !showAnswer && (
+                          <Button 
+                            onClick={() => setShowAnswer(true)}
+                            variant="outline"
+                          >
+                            Show Answer
+                          </Button>
+                        )}
+                        
+                        {!showQuestion ? (
+                          <Button onClick={() => startQuestion()}>
+                            Show Question
+                          </Button>
+                        ) : showAnswer && (
+                          <Button
+                            onClick={nextQuestion}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            {currentQuestionIndex < questions.length - 1 ? (
+                              <>
+                                Next Question
+                                <ChevronRight className="ml-1" size={18} />
+                              </>
+                            ) : (
+                              <>
+                                View Results
+                                <Trophy className="ml-1" size={18} />
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     
                     {showQuestion && (
@@ -784,10 +934,13 @@ const GamePresentation = () => {
                         )}
                         
                         {showAnswer && (
-                          <div className="bg-white rounded-xl shadow-md p-6 mt-4">
-                            <h4 className="font-bold text-lg mb-2">Correct Answer:</h4>
-                            <p className="text-brainblitz-primary text-lg font-medium">
-                              {currentQuestion.correct_answer}
+                          <div className="bg-green-50 border border-green-200 rounded-xl p-6 mt-6">
+                            <h4 className="font-bold text-lg mb-2 text-green-700">Correct Answer:</h4>
+                            <p className="text-green-700 text-lg font-medium">
+                              {typeof currentQuestion.correct_answer === 'string' && 
+                               currentQuestion.correct_answer.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+                                ? getAnswerTextFromId(currentQuestion.correct_answer)
+                                : currentQuestion.correct_answer}
                             </p>
                           </div>
                         )}
@@ -804,6 +957,20 @@ const GamePresentation = () => {
           </div>
         )}
       </main>
+      
+      <footer className="bg-white border-t border-gray-100 py-4 text-center text-sm text-brainblitz-dark-gray">
+        <div className="max-w-7xl mx-auto px-4">
+          {gameSession && (
+            <p>
+              Game ID: {gameSession.id.substring(0, 8)}...
+              {gameSession.status === 'active' && ' • '}
+              {gameSession.status === 'active' && (
+                <span className="text-green-600 font-medium">Live</span>
+              )}
+            </p>
+          )}
+        </div>
+      </footer>
     </div>
   );
 };
