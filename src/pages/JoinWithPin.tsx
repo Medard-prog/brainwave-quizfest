@@ -45,8 +45,11 @@ const JoinWithPin = () => {
       setIsVerifying(true);
       setError(null);
       
+      // Declare timeoutId variable here
+      let timeoutId: NodeJS.Timeout;
+      
       // Add timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         console.error("PIN verification timeout");
         setIsVerifying(false);
         setError("Verification timed out. Please try again.");
@@ -132,7 +135,10 @@ const JoinWithPin = () => {
     
     // Cleanup function to clear timeout if component unmounts
     return () => {
-      clearTimeout(timeoutId);
+      // Need to check if timeoutId exists before clearing
+      if (typeof timeoutId !== 'undefined') {
+        clearTimeout(timeoutId);
+      }
     };
   }, [pin, navigate]);
   

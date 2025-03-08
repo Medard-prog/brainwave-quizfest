@@ -270,17 +270,18 @@ const PlayGame = () => {
         existingAnswers = [];
       }
       
+      const isCorrect = answerIsCorrect(answerText, currentQuestion);
+      
       const newAnswer = {
         question_id: currentQuestion.id,
         answer: answerText,
-        correct: answerText === currentQuestion.correct_answer,
+        correct: isCorrect,
         question_index: gameSession.current_question_index,
         timestamp: new Date().toISOString()
       };
       
       const updatedAnswers = [...existingAnswers, newAnswer];
       
-      const isCorrect = answerText === currentQuestion.correct_answer;
       const pointsToAdd = isCorrect ? (currentQuestion.points || 10) : 0;
       const newScore = (playerSession.score || 0) + pointsToAdd;
       
@@ -321,7 +322,55 @@ const PlayGame = () => {
       setAnswerSubmitting(false);
     }
   };
-  
+
+  const answerIsCorrect = (selectedAnswer: string, question: Question): boolean => {
+    const correctAnswer = question.correct_answer;
+    
+    if (selectedAnswer === correctAnswer) {
+      return true;
+    }
+    
+    if (question.options && Array.isArray(question.options)) {
+      const selectedOption = question.options.find(opt => opt.id === selectedAnswer);
+      if (selectedOption && selectedOption.text === correctAnswer) {
+        return true;
+      }
+      
+      const selectedByText = question.options.find(opt => opt.text === selectedAnswer);
+      if (selectedByText && selectedByText.id === correctAnswer) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  const getAnswerText = (answerId: string) => {
+    if (!currentQuestion || !currentQuestion.options) return answerId;
+    
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(answerId)) {
+      const option = currentQuestion.options.find(opt => opt.id === answerId);
+      return option ? option.text : answerId;
+    }
+    
+    return answerId;
+  };
+
+  const getCorrectAnswerText = (question: Question): string => {
+    if (!question || !question.correct_answer) return "";
+    
+    if (question.options && Array.isArray(question.options)) {
+      const correctOption = question.options.find(
+        opt => opt.id === question.correct_answer || opt.text === question.correct_answer
+      );
+      if (correctOption) {
+        return correctOption.text;
+      }
+    }
+    
+    return question.correct_answer;
+  };
+
   const checkIfAllPlayersAnswered = async () => {
     if (!sessionId || !gameSession || !currentQuestion) return;
     
@@ -418,31 +467,6 @@ const PlayGame = () => {
     }
   }, [pollingError]);
 
-  const getAnswerText = (answerId: string) => {
-    if (!currentQuestion || !currentQuestion.options) return answerId;
-    
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(answerId)) {
-      const option = currentQuestion.options.find(opt => opt.id === answerId);
-      return option ? option.text : answerId;
-    }
-    
-    return answerId;
-  };
-
-  if (isLoading) {
-    return (
-      <MainLayout>
-        <div className="flex justify-center items-center min-h-screen">
-          <div className="text-center">
-            <Spinner size="lg" className="mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Loading Game</h2>
-            <p className="text-brainblitz-dark-gray">Please wait...</p>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
-
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -515,42 +539,46 @@ const PlayGame = () => {
             
             {currentQuestion.question_type === "multiple_choice" && currentQuestion.options && (
               <div className="space-y-3">
-                {currentQuestion.options.map((option, index) => (
-                  <button
-                    key={option.id || index}
-                    onClick={() => {
-                      if (!hasAnswered && !answerSubmitting) {
-                        setSelectedAnswer(option.id || option.text);
-                      }
-                    }}
-                    className={`w-full text-left p-4 rounded-lg transition ${
-                      hasAnswered 
-                        ? selectedAnswer === (option.id || option.text)
-                          ? option.text === currentQuestion.correct_answer || option.id === currentQuestion.correct_answer
-                            ? "bg-green-100 border-2 border-green-500"
-                            : "bg-red-100 border-2 border-red-500"
-                          : option.text === currentQuestion.correct_answer || option.id === currentQuestion.correct_answer
-                            ? "bg-green-50 border border-green-500"
-                            : "bg-gray-100 border border-gray-300"
-                        : selectedAnswer === (option.id || option.text)
-                          ? "bg-brainblitz-primary text-white"
-                          : "bg-gray-100 hover:bg-gray-200 border border-gray-300"
-                    }`}
-                    disabled={hasAnswered || answerSubmitting}
-                  >
-                    <div className="flex items-center">
-                      {hasAnswered && (option.text === currentQuestion.correct_answer || option.id === currentQuestion.correct_answer) && (
-                        <CheckCircle className="text-green-500 mr-2" size={18} />
-                      )}
-                      {hasAnswered && selectedAnswer === (option.id || option.text) && 
-                        option.text !== currentQuestion.correct_answer && 
-                        option.id !== currentQuestion.correct_answer && (
-                        <XCircle className="text-red-500 mr-2" size={18} />
-                      )}
-                      <span>{option.text}</span>
-                    </div>
-                  </button>
-                ))}
+                {currentQuestion.options.map((option, index) => {
+                  const optionId = option.id || option.text;
+                  const isSelected = selectedAnswer === optionId;
+                  const isCorrectOption = option.id === currentQuestion.correct_answer || option.text === currentQuestion.correct_answer;
+                  
+                  return (
+                    <button
+                      key={optionId || index}
+                      onClick={() => {
+                        if (!hasAnswered && !answerSubmitting) {
+                          setSelectedAnswer(optionId);
+                        }
+                      }}
+                      className={`w-full text-left p-4 rounded-lg transition ${
+                        hasAnswered 
+                          ? isSelected
+                            ? answerIsCorrect(optionId, currentQuestion)
+                              ? "bg-green-100 border-2 border-green-500"
+                              : "bg-red-100 border-2 border-red-500"
+                            : isCorrectOption
+                              ? "bg-green-50 border border-green-500"
+                              : "bg-gray-100 border border-gray-300"
+                          : isSelected
+                            ? "bg-brainblitz-primary text-white"
+                            : "bg-gray-100 hover:bg-gray-200 border border-gray-300"
+                      }`}
+                      disabled={hasAnswered || answerSubmitting}
+                    >
+                      <div className="flex items-center">
+                        {hasAnswered && isCorrectOption && (
+                          <CheckCircle className="text-green-500 mr-2" size={18} />
+                        )}
+                        {hasAnswered && isSelected && !isCorrectOption && (
+                          <XCircle className="text-red-500 mr-2" size={18} />
+                        )}
+                        <span>{option.text}</span>
+                      </div>
+                    </button>
+                  );
+                })}
                 
                 {selectedAnswer && !hasAnswered && (
                   <Button 
@@ -571,19 +599,19 @@ const PlayGame = () => {
                 
                 {hasAnswered && (
                   <div className={`mt-6 p-4 rounded-lg ${
-                    selectedAnswer === currentQuestion.correct_answer ? 
+                    answerIsCorrect(selectedAnswer!, currentQuestion) ? 
                     "bg-green-50 border border-green-200" : 
                     "bg-red-50 border border-red-200"
                   }`}>
                     <p className="font-medium text-center">
-                      {selectedAnswer === currentQuestion.correct_answer 
+                      {answerIsCorrect(selectedAnswer!, currentQuestion) 
                         ? "Your answer is correct! ✓" 
                         : "Your answer is incorrect."}
                     </p>
                     
-                    {selectedAnswer !== currentQuestion.correct_answer && (
+                    {!answerIsCorrect(selectedAnswer!, currentQuestion) && (
                       <p className="mt-2 text-center font-medium text-green-700">
-                        The correct answer is: {getAnswerText(currentQuestion.correct_answer)}
+                        The correct answer is: {getCorrectAnswerText(currentQuestion)}
                       </p>
                     )}
                     
