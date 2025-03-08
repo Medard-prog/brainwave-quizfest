@@ -4,15 +4,9 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-<<<<<<< HEAD
 import { Question, GameSession, Quiz, PlayerSession } from "@/lib/types";
 import { Clock, ChevronLeft, ChevronRight, CheckCircle, XCircle, Trophy } from "lucide-react";
 import { usePolling } from "@/utils/polling";
-=======
-import { Question } from "@/lib/types";
-import { Clock, ChevronRight, CheckCircle, Trophy, Users } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
->>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
 
 const GamePresentation = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -30,40 +24,15 @@ const GamePresentation = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [gameEnded, setGameEnded] = useState(false);
 
-<<<<<<< HEAD
   // Function to fetch game session data
   const fetchGameData = async () => {
-=======
-  const fetchGameData = async () => {
->>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
     if (!sessionId || !user) return;
     
-<<<<<<< HEAD
     try {
       console.log("Polling: Fetching game session data for host...");
       
       // Try RPC function first to avoid RLS issues
-=======
-    try {
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('game_sessions')
-        .select(`
-          *,
-          quiz:quizzes(*)
-        `)
-        .eq('id', sessionId)
-        .single();
-      
-      if (sessionError) throw sessionError;
-      if (!sessionData) throw new Error("Game session not found");
-      
-      setGameSession(sessionData);
-      setQuiz(sessionData.quiz);
-      setCurrentQuestionIndex(sessionData.current_question_index || 0);
-      
->>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
       try {
-<<<<<<< HEAD
         const { data: sessionData, error: rpcError } = await supabase
           .rpc('get_game_session_details', { session_id: sessionId });
           
@@ -115,30 +84,7 @@ const GamePresentation = () => {
       if (gameSession && gameSession.current_question_index !== sessionData.current_question_index) {
         console.log(`Polling: Question index changed from ${gameSession.current_question_index} to ${sessionData.current_question_index}`);
         setCurrentQuestionIndex(sessionData.current_question_index || 0);
-=======
-        const { data: questionsData, error: functionError } = await supabase
-          .rpc('get_quiz_questions', { quiz_id: sessionData.quiz.id });
-          
-        if (!functionError && questionsData) {
-          console.log("Questions fetched via RPC:", questionsData);
-          setQuestions(questionsData);
-        } else {
-          throw functionError;
-        }
-      } catch (functionError) {
-        console.error("Error using get_quiz_questions RPC:", functionError);
-        
-        const { data: questionsData, error: questionsError } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('quiz_id', sessionData.quiz.id)
-          .order('order_num', { ascending: true });
-        
-        if (questionsError) throw questionsError;
-        setQuestions(questionsData || []);
->>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
       }
-<<<<<<< HEAD
       
       setGameSession(sessionData as GameSession);
       setQuiz(sessionData.quiz as Quiz);
@@ -200,35 +146,12 @@ const GamePresentation = () => {
       console.error("Polling: Error in fetchQuestions:", error);
     }
   };
-=======
-      
-      fetchPlayers();
-    } catch (error) {
-      console.error("Error fetching game data:", error);
-      toast.error("Failed to load game data");
-      navigate('/dashboard');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!sessionId || !user) return;
-    
-    fetchGameData();
-    
-    const pollInterval = setInterval(fetchGameData, 1000);
-    
-    return () => clearInterval(pollInterval);
-  }, [sessionId, user, navigate]);
->>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
 
   // Function to fetch players
   const fetchPlayers = async () => {
     if (!sessionId) return;
     
     try {
-<<<<<<< HEAD
       console.log("Polling: Fetching players for game session:", sessionId);
       
       // Try RPC function first
@@ -247,22 +170,6 @@ const GamePresentation = () => {
       
       // Fallback to direct query
       const { data: playersData, error: playersError } = await supabase
-=======
-      try {
-        const { data: playersData, error: rpcError } = await supabase
-          .rpc('get_player_sessions_for_game', { p_game_session_id: sessionId });
-          
-        if (!rpcError && playersData) {
-          console.log("Players fetched via RPC:", playersData);
-          setPlayers(playersData);
-          return;
-        }
-      } catch (rpcError) {
-        console.error("RPC error fetching players:", rpcError);
-      }
-      
-      const { data, error } = await supabase
->>>>>>> 6f412d25b434e68cb69d391f0bb006a21a26cb78
         .from('player_sessions')
         .select('*')
         .eq('game_session_id', sessionId)
@@ -332,11 +239,7 @@ const GamePresentation = () => {
   }, [timerActive, timeLeft]);
 
   const startQuestion = async () => {
-    if (!questions[currentQuestionIndex]) {
-      console.error("No question found at index:", currentQuestionIndex);
-      toast.error("No question found to display");
-      return;
-    }
+    if (!questions[currentQuestionIndex]) return;
     
     setShowQuestion(true);
     setShowAnswer(false);
@@ -350,11 +253,7 @@ const GamePresentation = () => {
     try {
       await supabase
         .from('game_sessions')
-        .update({ 
-          status: 'active',
-          current_question_index: currentQuestionIndex,
-          started_at: gameSession.started_at || new Date().toISOString()
-        })
+        .update({ current_question_index: currentQuestionIndex })
         .eq('id', sessionId);
     } catch (error) {
       console.error("Error updating current question:", error);
@@ -377,7 +276,7 @@ const GamePresentation = () => {
       const { error } = await supabase
         .from('game_sessions')
         .update({
-          status: 'completed',
+          status: 'ended',
           ended_at: new Date().toISOString()
         })
         .eq('id', sessionId);
@@ -395,12 +294,12 @@ const GamePresentation = () => {
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
-        <Spinner size="lg" />
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brainblitz-primary"></div>
       </div>
     );
   }
 
-  if (!gameSession || !quiz) {
+  if (!gameSession || !quiz || questions.length === 0) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-center p-8">
@@ -414,49 +313,12 @@ const GamePresentation = () => {
     );
   }
 
-  if (questions.length === 0) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center p-8 max-w-md">
-          <h1 className="text-xl font-bold mb-4">No questions found</h1>
-          <p className="mb-6">This quiz doesn't have any questions. Please add questions before hosting a game.</p>
-          <Button asChild className="mr-2">
-            <a href={`/edit-quiz/${quiz.id}`}>Add Questions</a>
-          </Button>
-          <Button variant="outline" asChild>
-            <a href="/dashboard">Back to Dashboard</a>
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   const currentQuestion = questions[currentQuestionIndex];
-
-  if (!currentQuestion && questions.length > 0) {
-    console.error("Current question is undefined but questions exist", { currentQuestionIndex, questionsLength: questions.length });
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center p-8">
-          <h1 className="text-xl font-bold mb-4">Question Error</h1>
-          <p className="mb-6">Unable to load the current question. Please try refreshing.</p>
-          <Button onClick={() => window.location.reload()}>Refresh</Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-brainblitz-primary/5 to-brainblitz-accent/5">
       <header className="bg-white shadow-sm p-4 flex justify-between items-center">
-        <div className="flex items-center">
-          <h1 className="text-xl font-bold">{quiz.title}</h1>
-          {quiz.game_pin && (
-            <div className="ml-4 bg-brainblitz-primary/10 px-3 py-1 rounded text-sm font-medium">
-              PIN: {quiz.game_pin}
-            </div>
-          )}
-        </div>
+        <h1 className="text-xl font-bold">{quiz.title}</h1>
         <div className="flex items-center gap-4">
           <div className="text-brainblitz-dark-gray">
             Question {currentQuestionIndex + 1} of {questions.length}
@@ -467,12 +329,7 @@ const GamePresentation = () => {
         </div>
       </header>
       
-      <main className="flex-1 overflow-hidden flex flex-col relative">
-        <div className="absolute top-4 right-4 z-10 bg-white rounded-full px-3 py-1 shadow-md flex items-center">
-          <Users size={16} className="mr-2 text-brainblitz-primary" />
-          <span className="font-medium">{players.length}</span>
-        </div>
-        
+      <main className="flex-1 overflow-hidden flex flex-col">
         {gameEnded ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8">
             <div className="max-w-3xl w-full bg-white rounded-xl shadow-lg overflow-hidden">
@@ -487,53 +344,46 @@ const GamePresentation = () => {
                   <p className="text-center text-brainblitz-dark-gray">No players joined this game.</p>
                 ) : (
                   <>
-                    {players.length > 0 && (
-                      <div className="flex flex-col sm:flex-row justify-center items-center gap-8 mb-8">
-                        {players.length > 1 && (
-                          <div className="order-2 sm:order-1">
-                            <div className="flex flex-col items-center">
-                              <div className="h-24 w-24 bg-gray-100 rounded-full flex items-center justify-center mb-2">
-                                <span className="text-2xl font-bold">{players[1]?.player_name?.charAt(0)}</span>
-                              </div>
-                              <div className="text-lg font-bold">{players[1]?.player_name}</div>
-                              <div className="text-3xl font-bold text-brainblitz-dark-gray">{players[1]?.score}</div>
-                              <div className="text-md font-semibold bg-gray-300 px-3 py-1 rounded mt-2">2nd</div>
-                            </div>
-                          </div>
-                        )}
-                        
-                        <div className="order-1 sm:order-2">
+                    <div className="space-y-4 mb-8">
+                      {players.length > 1 && (
+                        <div className="flex justify-center items-end h-48 gap-4 mb-8">
                           <div className="flex flex-col items-center">
-                            <div className="h-28 w-28 bg-brainblitz-primary text-white rounded-full flex items-center justify-center mb-2">
-                              <span className="text-3xl font-bold">{players[0]?.player_name?.charAt(0)}</span>
+                            <div className="text-lg font-bold mb-2">{players[1]?.player_name}</div>
+                            <div className="bg-gray-300 w-24 h-28 flex items-center justify-center rounded-t-lg">
+                              <div className="text-2xl font-bold">{players[1]?.score}</div>
                             </div>
-                            <div className="text-xl font-bold">{players[0]?.player_name}</div>
-                            <div className="text-4xl font-bold text-brainblitz-primary">{players[0]?.score}</div>
-                            <div className="text-md font-semibold bg-brainblitz-primary text-white px-3 py-1 rounded mt-2">1st</div>
+                            <div className="text-xl font-bold">2nd</div>
                           </div>
                         </div>
-                        
-                        {players.length > 2 && (
-                          <div className="order-3">
-                            <div className="flex flex-col items-center">
-                              <div className="h-24 w-24 bg-gray-100 rounded-full flex items-center justify-center mb-2">
-                                <span className="text-2xl font-bold">{players[2]?.player_name?.charAt(0)}</span>
-                              </div>
-                              <div className="text-lg font-bold">{players[2]?.player_name}</div>
-                              <div className="text-3xl font-bold text-brainblitz-dark-gray">{players[2]?.score}</div>
-                              <div className="text-md font-semibold bg-brainblitz-accent px-3 py-1 rounded mt-2">3rd</div>
-                            </div>
+                      )}
+                      
+                      {players.length > 0 && (
+                        <div className="flex flex-col items-center">
+                          <div className="text-lg font-bold mb-2">{players[0]?.player_name}</div>
+                          <div className="bg-brainblitz-primary w-24 h-36 flex items-center justify-center rounded-t-lg text-white">
+                            <div className="text-2xl font-bold">{players[0]?.score}</div>
                           </div>
-                        )}
-                      </div>
-                    )}
+                          <div className="text-xl font-bold">1st</div>
+                        </div>
+                      )}
+                      
+                      {players.length > 2 && (
+                        <div className="flex flex-col items-center">
+                          <div className="text-lg font-bold mb-2">{players[2]?.player_name}</div>
+                          <div className="bg-brainblitz-accent w-24 h-24 flex items-center justify-center rounded-t-lg">
+                            <div className="text-2xl font-bold">{players[2]?.score}</div>
+                          </div>
+                          <div className="text-xl font-bold">3rd</div>
+                        </div>
+                      )}
+                    </div>
                     
                     {players.length > 3 && (
                       <div className="mt-8">
                         <h3 className="text-lg font-bold mb-4">Leaderboard</h3>
-                        <div className="max-h-60 overflow-y-auto">
+                        <div className="space-y-2">
                           {players.slice(3).map((player, index) => (
-                            <div key={player.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg mb-2">
+                            <div key={player.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
                               <div className="flex items-center gap-3">
                                 <div className="text-brainblitz-dark-gray font-medium">{index + 4}.</div>
                                 <div className="font-medium">{player.player_name}</div>
@@ -557,54 +407,22 @@ const GamePresentation = () => {
           </div>
         ) : !showQuestion ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8">
-            <div className="max-w-3xl w-full">
-              <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold flex items-center">
-                    <Users className="mr-2 h-5 w-5" />
-                    Players in the game
-                  </h3>
-                  <span className="text-brainblitz-primary font-bold">{players.length}</span>
-                </div>
-                
-                {players.length === 0 ? (
-                  <div className="text-center py-4 text-brainblitz-dark-gray">
-                    <p>No players have joined yet</p>
-                    <p className="text-sm mt-2">Share the PIN or QR code to get started</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {players.map(player => (
-                      <div 
-                        key={player.id}
-                        className="bg-gray-50 rounded-lg p-3 text-center"
-                      >
-                        <div className="font-medium truncate">{player.player_name}</div>
-                        <div className="text-xs text-brainblitz-dark-gray">Score: {player.score}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            <div className="max-w-3xl w-full text-center">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-4">
+                Question {currentQuestionIndex + 1}
+              </h2>
+              <p className="text-brainblitz-dark-gray mb-8 text-lg">
+                {currentQuestion.points} points
+                {currentQuestion.time_limit ? ` • ${currentQuestion.time_limit} seconds` : ''}
+              </p>
               
-              <div className="text-center">
-                <h2 className="text-2xl sm:text-3xl font-bold mb-4">
-                  Question {currentQuestionIndex + 1}
-                </h2>
-                <p className="text-brainblitz-dark-gray mb-8 text-lg">
-                  {currentQuestion.points} points
-                  {currentQuestion.time_limit ? ` • ${currentQuestion.time_limit} seconds` : ''}
-                </p>
-                
-                <Button 
-                  size="lg" 
-                  onClick={startQuestion}
-                  className="px-8 py-6 text-lg"
-                  disabled={players.length === 0}
-                >
-                  {players.length === 0 ? "Waiting for players to join..." : "Start Question"}
-                </Button>
-              </div>
+              <Button 
+                size="lg" 
+                onClick={startQuestion}
+                className="px-8 py-6 text-lg"
+              >
+                Start Question
+              </Button>
             </div>
           </div>
         ) : (
